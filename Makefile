@@ -16,7 +16,7 @@ VERBOSE=1
 CFLAGS += $(build_args)
 
 # Path to the NRF52 SDK. Change if needed.
-SDK_ROOT := /home/benjamin/Dokument/nrf52/nRF5_SDK_15.3.0_59ac345
+SDK_ROOT := /home/robot/nRF5_SDK_15.3.0
 
 TARGET_PATH := $(OUTPUT_DIRECTORY)/$(TARGETS).hex
 
