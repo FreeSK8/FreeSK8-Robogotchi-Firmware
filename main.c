@@ -65,11 +65,15 @@
 #include "crc.h"
 
 #ifndef MODULE_BUILTIN
-#define MODULE_BUILTIN					1
+#define MODULE_BUILTIN					0
 #endif
 
 #ifndef MODULE_RD2
 #define MODULE_RD2						0
+#endif
+
+#ifndef MODULE_FREESK8
+#define MODULE_FREESK8					1
 #endif
 
 #define APP_BLE_CONN_CFG_TAG            1                                           /**< A tag identifying the SoftDevice BLE configuration. */
@@ -79,6 +83,8 @@
 #define DEVICE_NAME                     "VESC 52840 BUILTIN"
 #elif defined(MODULE_RD2)
 #define DEVICE_NAME                     "VESC RAD2"
+#elif defined(MODULE_FREESK8)
+#define DEVICE_NAME   					"FREESK8 52840 RX"
 #else
 #define DEVICE_NAME                     "VESC 52840 UART"
 #endif
@@ -130,6 +136,11 @@
 #define UART_TX							12
 #define UART_TX_DISABLED				18
 #define LED_PIN							15
+#elif defined(MODULE_FREESK8)
+#define UART_RX							17
+#define UART_TX							15
+#define UART_TX_DISABLED				19
+#define LED_PIN							7
 #else
 #define UART_RX							11
 #define UART_TX							8
