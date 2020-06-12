@@ -127,10 +127,10 @@
 #define UART_TX_DISABLED				28
 #define LED_PIN							27
 #elif defined(MODULE_FREESK8)
-#define UART_RX							17
-#define UART_TX							15
+#define UART_RX							36
+#define UART_TX							35
 #define UART_TX_DISABLED				19
-#define LED_PIN							7
+#define LED_PIN							11
 #else
 #define UART_RX							11
 #define UART_TX							8
