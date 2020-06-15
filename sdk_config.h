@@ -2646,7 +2646,7 @@
  
 
 #ifndef NRFX_PWM1_ENABLED
-#define NRFX_PWM1_ENABLED 0
+#define NRFX_PWM1_ENABLED 1
 #endif
 
 // <q> NRFX_PWM2_ENABLED  - Enable PWM2 instance
@@ -4776,7 +4776,7 @@
  
 
 #ifndef PPI_ENABLED
-#define PPI_ENABLED 0
+#define PPI_ENABLED 1
 #endif
 
 // <e> PWM_ENABLED - nrf_drv_pwm - PWM peripheral driver - legacy layer
@@ -5035,7 +5035,7 @@
 // <e> QSPI_ENABLED - nrf_drv_qspi - QSPI peripheral driver - legacy layer
 //==========================================================
 #ifndef QSPI_ENABLED
-#define QSPI_ENABLED 0
+#define QSPI_ENABLED 1
 #endif
 // <o> QSPI_CONFIG_SCK_DELAY - tSHSL, tWHSL and tSHWL in number of 16 MHz periods (62.5 ns).  <0-255> 
 
@@ -5115,32 +5115,32 @@
 
 // <s> QSPI_PIN_SCK - SCK pin value.
 #ifndef QSPI_PIN_SCK
-#define QSPI_PIN_SCK NRF_QSPI_PIN_NOT_CONNECTED
+#define QSPI_PIN_SCK 9
 #endif
 
 // <s> QSPI_PIN_CSN - CSN pin value.
 #ifndef QSPI_PIN_CSN
-#define QSPI_PIN_CSN NRF_QSPI_PIN_NOT_CONNECTED
+#define QSPI_PIN_CSN 2
 #endif
 
 // <s> QSPI_PIN_IO0 - IO0 pin value.
 #ifndef QSPI_PIN_IO0
-#define QSPI_PIN_IO0 NRF_QSPI_PIN_NOT_CONNECTED
+#define QSPI_PIN_IO0 3
 #endif
 
 // <s> QSPI_PIN_IO1 - IO1 pin value.
 #ifndef QSPI_PIN_IO1
-#define QSPI_PIN_IO1 NRF_QSPI_PIN_NOT_CONNECTED
+#define QSPI_PIN_IO1 38 //NRF_GPIO_PIN_MAP(1, 6)
 #endif
 
 // <s> QSPI_PIN_IO2 - IO2 pin value.
 #ifndef QSPI_PIN_IO2
-#define QSPI_PIN_IO2 NRF_QSPI_PIN_NOT_CONNECTED
+#define QSPI_PIN_IO2 42 //NRF_GPIO_PIN_MAP(1, 10)
 #endif
 
 // <s> QSPI_PIN_IO3 - IO3 pin value.
 #ifndef QSPI_PIN_IO3
-#define QSPI_PIN_IO3 NRF_QSPI_PIN_NOT_CONNECTED
+#define QSPI_PIN_IO3 10
 #endif
 
 // <o> QSPI_CONFIG_IRQ_PRIORITY  - Interrupt priority
@@ -5506,7 +5506,7 @@
 // <e> TIMER_ENABLED - nrf_drv_timer - TIMER periperal driver - legacy layer
 //==========================================================
 #ifndef TIMER_ENABLED
-#define TIMER_ENABLED 0
+#define TIMER_ENABLED 1
 #endif
 // <o> TIMER_DEFAULT_CONFIG_FREQUENCY  - Timer frequency if in Timer mode
  
@@ -5573,7 +5573,7 @@
  
 
 #ifndef TIMER1_ENABLED
-#define TIMER1_ENABLED 0
+#define TIMER1_ENABLED 1
 #endif
 
 // <q> TIMER2_ENABLED  - Enable TIMER2 instance
@@ -6007,14 +6007,14 @@
  
 
 #ifndef APP_GPIOTE_ENABLED
-#define APP_GPIOTE_ENABLED 0
+#define APP_GPIOTE_ENABLED 1
 #endif
 
 // <q> APP_PWM_ENABLED  - app_pwm - PWM functionality
  
 
 #ifndef APP_PWM_ENABLED
-#define APP_PWM_ENABLED 0
+#define APP_PWM_ENABLED 1
 #endif
 
 // <e> APP_SCHEDULER_ENABLED - app_scheduler - Events scheduler
@@ -7554,7 +7554,7 @@
 // <e> NRF_LOG_ENABLED - nrf_log - Logger
 //==========================================================
 #ifndef NRF_LOG_ENABLED
-#define NRF_LOG_ENABLED 0
+#define NRF_LOG_ENABLED 1
 #endif
 // <h> Log message pool - Configuration of log message pool
 

@@ -16,7 +16,7 @@ VERBOSE=1
 CFLAGS += $(build_args)
 
 # Path to the NRF52 SDK. Change if needed.
-SDK_ROOT := /home/robot/nRF5_SDK_15.3.0
+SDK_ROOT := /home/renee/Documents/nRF5_SDK_15.3.0_59ac345
 
 TARGET_PATH := $(OUTPUT_DIRECTORY)/$(TARGETS).hex
 
@@ -115,7 +115,14 @@ SRC_FILES += \
   packet.c \
   i2c_bb.c \
   sdk_mod/nrf_esb.c \
-  esb_timeslot.c
+  esb_timeslot.c \
+  SSD1306/SSD1306.c \
+  SSD1306/Adafruit_GFX.c \
+  $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_timer.c \
+  $(SDK_ROOT)/components/libraries/pwm/app_pwm.c \
+  $(SDK_ROOT)/integration/nrfx/legacy/nrf_drv_ppi.c \
+  $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_ppi.c \
+  $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_qspi.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \
@@ -252,6 +259,7 @@ INC_FOLDERS += \
   $(SDK_ROOT)/components/libraries/log/src \
   . \
   sdk_mod \
+  SSD1306
 
 # Libraries common to all targets
 LIB_FILES += \

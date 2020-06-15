@@ -2,24 +2,28 @@
 	Copyright 2019 Benjamin Vedder	benjamin@vedder.se
 
 	This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-    */
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+	*/
 
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
+
+#include "fds.h"
+#include "nrf_fstorage.h"
+#include "nrf_drv_qspi.h"
 
 #include "nordic_common.h"
 #include "nrf.h"
@@ -39,6 +43,7 @@
 #include "nrf_pwr_mgmt.h"
 #include "bsp_btn_ble.h"
 #include "nrf_delay.h"
+#include "bsp.h"
 
 #if defined (UART_PRESENT)
 #include "nrf_uart.h"
@@ -64,6 +69,30 @@
 #include "esb_timeslot.h"
 #include "crc.h"
 
+#include "nrf_log.h"
+#include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
+
+//Display
+#define HAS_DISPLAY 1
+#ifdef HAS_DISPLAY
+#include "nrf_drv_twi.h"
+const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
+#include "SSD1306.h"
+#include "Adafruit_GFX.h"
+#endif
+
+// Piezo
+#define PIN_PIEZO 32
+#include "app_pwm.h"
+APP_PWM_INSTANCE(PWM1,1);				   // Create the instance "PWM1" using TIMER1.
+static volatile bool ready_flag;			// A flag indicating PWM status.
+void pwm_ready_callback(uint32_t pwm_id)	// PWM callback function
+{
+	ready_flag = true;
+}
+
+
 #ifndef MODULE_BUILTIN
 #define MODULE_BUILTIN					0
 #endif
@@ -73,48 +102,48 @@
 #endif
 
 
-#define APP_BLE_CONN_CFG_TAG            1                                           /**< A tag identifying the SoftDevice BLE configuration. */
+#define APP_BLE_CONN_CFG_TAG			1										   /**< A tag identifying the SoftDevice BLE configuration. */
 
 #ifdef NRF52840_XXAA
 #if MODULE_BUILTIN
-#define DEVICE_NAME                     "VESC 52840 BUILTIN"
+#define DEVICE_NAME					 "VESC 52840 BUILTIN"
 #elif defined(MODULE_FREESK8)
-#define DEVICE_NAME   					"FREESK8 52840"
+#define DEVICE_NAME   					"FreeSK8 Receiver"
 #else
-#define DEVICE_NAME                     "VESC 52840 UART"
+#define DEVICE_NAME					 "VESC 52840 UART"
 #endif
 #else
 #if MODULE_BUILTIN
-#define DEVICE_NAME                     "VESC 52832 BUILTIN"
+#define DEVICE_NAME					 "VESC 52832 BUILTIN"
 #else
-#define DEVICE_NAME                     "VESC 52832 UART"
+#define DEVICE_NAME					 "VESC 52832 UART"
 #endif
 #endif
 
-#define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
+#define NUS_SERVICE_UUID_TYPE		   BLE_UUID_TYPE_VENDOR_BEGIN				  /**< UUID type for the Nordic UART Service (vendor specific). */
 
-#define APP_BLE_OBSERVER_PRIO           3                                           /**< Application's BLE observer priority. You shouldn't need to modify this value. */
+#define APP_BLE_OBSERVER_PRIO		   3										   /**< Application's BLE observer priority. You shouldn't need to modify this value. */
 
-#define APP_ADV_INTERVAL                64                                          /**< The advertising interval (in units of 0.625 ms. This value corresponds to 40 ms). */
+#define APP_ADV_INTERVAL				64										  /**< The advertising interval (in units of 0.625 ms. This value corresponds to 40 ms). */
 
-#define APP_ADV_DURATION                18000                                       /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
+#define APP_ADV_DURATION				18000									   /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 
-#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(7.5, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(20, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
-#define SLAVE_LATENCY                   0                                           /**< Slave latency. */
-#define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
-#define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000)                       /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
-#define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(30000)                      /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
-#define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
+#define MIN_CONN_INTERVAL			   MSEC_TO_UNITS(7.5, UNIT_1_25_MS)			 /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
+#define MAX_CONN_INTERVAL			   MSEC_TO_UNITS(20, UNIT_1_25_MS)			 /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
+#define SLAVE_LATENCY				   0										   /**< Slave latency. */
+#define CONN_SUP_TIMEOUT				MSEC_TO_UNITS(4000, UNIT_10_MS)			 /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
+#define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000)					   /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
+#define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(30000)					  /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
+#define MAX_CONN_PARAMS_UPDATE_COUNT	3										   /**< Number of attempts before giving up the connection parameter negotiation. */
 
-#define DEAD_BEEF                       0xDEADBEEF                                  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
+#define DEAD_BEEF					   0xDEADBEEF								  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
 #ifdef NRF52840_XXAA
-#define UART_TX_BUF_SIZE                16384
-#define UART_RX_BUF_SIZE                16384
+#define UART_TX_BUF_SIZE				16384
+#define UART_RX_BUF_SIZE				16384
 #else
-#define UART_TX_BUF_SIZE                2048
-#define UART_RX_BUF_SIZE                8192
+#define UART_TX_BUF_SIZE				2048
+#define UART_RX_BUF_SIZE				8192
 #endif
 
 #define PACKET_VESC						0
@@ -153,18 +182,19 @@
 #endif
 #endif
 
+
 // Private variables
 APP_TIMER_DEF(m_packet_timer);
 APP_TIMER_DEF(m_nrf_timer);
 
-BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT);                                   /**< BLE NUS service instance. */
-NRF_BLE_GATT_DEF(m_gatt);                                                           /**< GATT module instance. */
-NRF_BLE_QWR_DEF(m_qwr);                                                             /**< Context for the Queued Write module.*/
-BLE_ADVERTISING_DEF(m_advertising);                                                 /**< Advertising module instance. */
+BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT);								   /**< BLE NUS service instance. */
+NRF_BLE_GATT_DEF(m_gatt);														   /**< GATT module instance. */
+NRF_BLE_QWR_DEF(m_qwr);															 /**< Context for the Queued Write module.*/
+BLE_ADVERTISING_DEF(m_advertising);												 /**< Advertising module instance. */
 
-static uint16_t   m_conn_handle          = BLE_CONN_HANDLE_INVALID;                 /**< Handle of the current connection. */
-static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
-static ble_uuid_t m_adv_uuids[]          =                                          /**< Universally unique service identifier. */
+static uint16_t   m_conn_handle		  = BLE_CONN_HANDLE_INVALID;				 /**< Handle of the current connection. */
+static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;			/**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
+static ble_uuid_t m_adv_uuids[]		  =										  /**< Universally unique service identifier. */
 {
 		{BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}
 };
@@ -174,16 +204,16 @@ static volatile int						m_other_comm_disable_time = 0;
 
 app_uart_comm_params_t m_uart_comm_params =
 {
-		.rx_pin_no    = UART_RX,
-		.tx_pin_no    = UART_TX,
+		.rx_pin_no	= UART_RX,
+		.tx_pin_no	= UART_TX,
 		.rts_pin_no   = 0,
 		.cts_pin_no   = 0,
 		.flow_control = APP_UART_FLOW_CONTROL_DISABLED,
 		.use_parity   = false,
 #if defined (UART_PRESENT)
-		.baud_rate    = NRF_UART_BAUDRATE_115200
+		.baud_rate	= NRF_UART_BAUDRATE_115200
 #else
-		.baud_rate    = NRF_UARTE_BAUDRATE_115200
+		.baud_rate	= NRF_UARTE_BAUDRATE_115200
 #endif
 };
 
@@ -196,11 +226,11 @@ static void cdc_acm_user_ev_handler(app_usbd_class_inst_t const * p_inst,
 		app_usbd_cdc_acm_user_event_t event);
 
 #define CDC_ACM_COMM_INTERFACE  0
-#define CDC_ACM_COMM_EPIN       NRF_DRV_USBD_EPIN2
+#define CDC_ACM_COMM_EPIN	   NRF_DRV_USBD_EPIN2
 
 #define CDC_ACM_DATA_INTERFACE  1
-#define CDC_ACM_DATA_EPIN       NRF_DRV_USBD_EPIN1
-#define CDC_ACM_DATA_EPOUT      NRF_DRV_USBD_EPOUT1
+#define CDC_ACM_DATA_EPIN	   NRF_DRV_USBD_EPIN1
+#define CDC_ACM_DATA_EPOUT	  NRF_DRV_USBD_EPOUT1
 
 /**
  * @brief CDC_ACM class instance
@@ -276,10 +306,10 @@ static void usbd_user_ev_handler(app_usbd_event_type_t event) {
  * @details This function will be called in case of an assert in the SoftDevice.
  *
  * @warning This handler is an example only and does not fit a final product. You need to analyse
- *          how your product is supposed to react in case of Assert.
+ *		  how your product is supposed to react in case of Assert.
  * @warning On assert from the SoftDevice, the system can only recover on reset.
  *
- * @param[in] line_num    Line number of the failing ASSERT call.
+ * @param[in] line_num	Line number of the failing ASSERT call.
  * @param[in] p_file_name File name of the failing ASSERT call.
  */
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
@@ -289,7 +319,7 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 
 static void gap_params_init(void)
 {
-	uint32_t                err_code;
+	uint32_t				err_code;
 	ble_gap_conn_params_t   gap_conn_params;
 	ble_gap_conn_sec_mode_t sec_mode;
 
@@ -304,7 +334,7 @@ static void gap_params_init(void)
 
 	gap_conn_params.min_conn_interval = MIN_CONN_INTERVAL;
 	gap_conn_params.max_conn_interval = MAX_CONN_INTERVAL;
-	gap_conn_params.slave_latency     = SLAVE_LATENCY;
+	gap_conn_params.slave_latency	 = SLAVE_LATENCY;
 	gap_conn_params.conn_sup_timeout  = CONN_SUP_TIMEOUT;
 
 	err_code = sd_ble_gap_ppcp_set(&gap_conn_params);
@@ -320,7 +350,7 @@ static void start_advertising(void) {
 /**@brief Function for handling Queued Write Module errors.
  *
  * @details A pointer to this function will be passed to each service which may need to inform the
- *          application about an error.
+ *		  application about an error.
  *
  * @param[in]   nrf_error   Error code containing information about what went wrong.
  */
@@ -339,8 +369,8 @@ static void nus_data_handler(ble_nus_evt_t * p_evt) {
 }
 
 static void services_init(void) {
-	uint32_t           err_code;
-	ble_nus_init_t     nus_init;
+	uint32_t		   err_code;
+	ble_nus_init_t	 nus_init;
 	nrf_ble_qwr_init_t qwr_init = {0};
 
 	// Initialize Queued Write Module.
@@ -369,19 +399,19 @@ static void conn_params_error_handler(uint32_t nrf_error) {
 /**@brief Function for initializing the Connection Parameters module.
  */
 static void conn_params_init(void) {
-	uint32_t               err_code;
+	uint32_t			   err_code;
 	ble_conn_params_init_t cp_init;
 
 	memset(&cp_init, 0, sizeof(cp_init));
 
-	cp_init.p_conn_params                  = NULL;
+	cp_init.p_conn_params				  = NULL;
 	cp_init.first_conn_params_update_delay = FIRST_CONN_PARAMS_UPDATE_DELAY;
 	cp_init.next_conn_params_update_delay  = NEXT_CONN_PARAMS_UPDATE_DELAY;
 	cp_init.max_conn_params_update_count   = MAX_CONN_PARAMS_UPDATE_COUNT;
-	cp_init.start_on_notify_cccd_handle    = BLE_GATT_HANDLE_INVALID;
-	cp_init.disconnect_on_fail             = true;
-	cp_init.evt_handler                    = NULL;
-	cp_init.error_handler                  = conn_params_error_handler;
+	cp_init.start_on_notify_cccd_handle	= BLE_GATT_HANDLE_INVALID;
+	cp_init.disconnect_on_fail			 = true;
+	cp_init.evt_handler					= NULL;
+	cp_init.error_handler				  = conn_params_error_handler;
 
 	err_code = ble_conn_params_init(&cp_init);
 	APP_ERROR_CHECK(err_code);
@@ -538,9 +568,9 @@ static void advertising_init(void) {
 
 	memset(&init, 0, sizeof(init));
 
-	init.advdata.name_type          = BLE_ADVDATA_FULL_NAME;
+	init.advdata.name_type		  = BLE_ADVDATA_FULL_NAME;
 	init.advdata.include_appearance = false;
-	init.advdata.flags              = BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE;
+	init.advdata.flags			  = BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE;
 
 	init.srdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
 	init.srdata.uuids_complete.p_uuids  = m_adv_uuids;
@@ -707,10 +737,276 @@ static void nrf_timer_handler(void *p_context) {
 	cdc_printf("Test\r\n");
 }
 
-int main(void) {
-	nrf_gpio_cfg_output(LED_PIN);
+#ifdef HAS_DISPLAY
+void i2c_oled_comm_handle(uint8_t hdl_address, uint8_t *hdl_buffer, size_t hdl_buffer_size)
+{
+	nrf_drv_twi_tx(&m_twi_master, hdl_address, hdl_buffer, hdl_buffer_size, false);
+}
 
-#ifdef NRF52840_XXAA
+
+/**
+ * @brief Initialize the master TWI.
+ *
+ * Function used to initialize the master TWI interface that would communicate with OLED.
+ *
+ * @return NRF_SUCCESS or the reason of failure.
+ */
+static ret_code_t twi_master_init(void)
+{
+	ret_code_t ret;
+	const nrf_drv_twi_config_t config =
+	{
+	   .scl				= 27,
+	   .sda				= 26,
+	   .frequency		  = NRF_TWI_FREQ_400K,
+	   .interrupt_priority = APP_IRQ_PRIORITY_HIGH,
+	   .clear_bus_init	 = true
+	};
+
+	ret = nrf_drv_twi_init(&m_twi_master, &config, NULL, NULL);
+
+	if (NRF_SUCCESS == ret)
+	{
+		nrf_drv_twi_enable(&m_twi_master);
+	}
+
+	return ret;
+}
+#endif
+
+
+
+
+////////////////QSPI
+
+static volatile bool m_finished = false;
+
+
+#define QSPI_STD_CMD_WRSR   0x01
+#define QSPI_STD_CMD_RSTEN  0x66
+#define QSPI_STD_CMD_RST	0x99
+
+#define QSPI_TEST_DATA_SIZE 256//8
+
+static uint8_t m_buffer_tx[QSPI_TEST_DATA_SIZE];
+static uint8_t m_buffer_rx[QSPI_TEST_DATA_SIZE];
+
+#define WAIT_FOR_PERIPH() do { \
+		while (!m_finished) {} \
+		m_finished = false;	\
+	} while (0)
+
+
+static void qspi_handler(nrf_drv_qspi_evt_t event, void * p_context)
+{
+	UNUSED_PARAMETER(event);
+	UNUSED_PARAMETER(p_context);
+	m_finished = true;
+}
+
+static void configure_memory()
+{
+	uint8_t temporary = 0x40;
+	uint32_t err_code;
+	nrf_qspi_cinstr_conf_t cinstr_cfg = {
+		.opcode	   = QSPI_STD_CMD_RSTEN,
+		.length	   = NRF_QSPI_CINSTR_LEN_1B,
+		.io2_level = true,
+		.io3_level = true,
+		.wipwait   = true,
+		.wren	   = true
+	};
+
+	// Send reset enable
+	err_code = nrf_drv_qspi_cinstr_xfer(&cinstr_cfg, NULL, NULL);
+	APP_ERROR_CHECK(err_code);
+
+	// Send reset command
+	cinstr_cfg.opcode = QSPI_STD_CMD_RST;
+	err_code = nrf_drv_qspi_cinstr_xfer(&cinstr_cfg, NULL, NULL);
+	APP_ERROR_CHECK(err_code);
+
+	// Switch to qspi mode
+	cinstr_cfg.opcode = QSPI_STD_CMD_WRSR;
+	cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_2B;
+	err_code = nrf_drv_qspi_cinstr_xfer(&cinstr_cfg, &temporary, NULL);
+	APP_ERROR_CHECK(err_code);
+
+///////
+	/*
+	cinstr_cfg.opcode = 0x06;
+	cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_1B;
+	cinstr_cfg.wipwait   = false;
+	 cinstr_cfg.wren	  = false;
+	err_code = nrf_drv_qspi_cinstr_xfer(&cinstr_cfg, &temporary, NULL);
+	APP_ERROR_CHECK(err_code);
+	*/
+}
+
+/*
+#define MY_QSPI														 \
+{																	   \
+	.xip_offset  = NRFX_QSPI_CONFIG_XIP_OFFSET,						 \
+	.pins = {														   \
+	   .sck_pin	 = NRF_GPIO_PIN_MAP(0, 9),						   \
+	   .csn_pin	 = NRF_GPIO_PIN_MAP(0, 2),						   \
+	   .io0_pin	 = NRF_GPIO_PIN_MAP(0, 3),						   \
+	   .io1_pin	 = NRF_GPIO_PIN_MAP(1, 6),						   \
+	   .io2_pin	 = NRF_GPIO_PIN_MAP(1, 10),						  \
+	   .io3_pin	 = NRF_GPIO_PIN_MAP(0, 10),						  \
+	},																  \
+	.irq_priority   = (uint8_t)NRFX_QSPI_CONFIG_IRQ_PRIORITY,		   \
+	.prot_if = {														\
+		.readoc	 = (nrf_qspi_readoc_t)NRFX_QSPI_CONFIG_READOC,	   \
+		.writeoc	= (nrf_qspi_writeoc_t)NRFX_QSPI_CONFIG_WRITEOC,	 \
+		.addrmode   = (nrf_qspi_addrmode_t)NRFX_QSPI_CONFIG_ADDRMODE,   \
+		.dpmconfig  = false,											\
+	},																  \
+	.phy_if = {														 \
+		.sck_freq   = (nrf_qspi_frequency_t)NRFX_QSPI_CONFIG_FREQUENCY, \
+		.sck_delay  = (uint8_t)NRFX_QSPI_CONFIG_SCK_DELAY,			  \
+		.spi_mode   = (nrf_qspi_spi_mode_t)NRFX_QSPI_CONFIG_MODE,	   \
+		.dpmen	  = false											 \
+	},																  \
+}
+*/
+
+#define MY_QSPI														 \
+{																	   \
+	.xip_offset  = NRFX_QSPI_CONFIG_XIP_OFFSET,						 \
+	.pins = {														   \
+	   .sck_pin	 = NRF_GPIO_PIN_MAP(0, 9),						   \
+	   .csn_pin	 = NRF_GPIO_PIN_MAP(0, 2),						   \
+	   .io0_pin	 = NRF_GPIO_PIN_MAP(0, 3),						   \
+	   .io1_pin	 = NRF_GPIO_PIN_MAP(1, 6),						   \
+	   .io2_pin	 = NRF_GPIO_PIN_MAP(1, 10),						  \
+	   .io3_pin	 = NRF_GPIO_PIN_MAP(0, 10),						  \
+	},																  \
+	.irq_priority   = (uint8_t)NRFX_QSPI_CONFIG_IRQ_PRIORITY,		   \
+	.prot_if = {														\
+		.readoc	 = (nrf_qspi_readoc_t)NRFX_QSPI_CONFIG_READOC,	   \
+		.writeoc	= (nrf_qspi_writeoc_t)NRFX_QSPI_CONFIG_WRITEOC,	 \
+		.addrmode   = (nrf_qspi_addrmode_t)NRFX_QSPI_CONFIG_ADDRMODE,   \
+		.dpmconfig  = false,											\
+	},																  \
+	.phy_if = {														 \
+		.sck_freq   = (nrf_qspi_frequency_t)NRFX_QSPI_CONFIG_FREQUENCY, \
+		.sck_delay  = (uint8_t)NRFX_QSPI_CONFIG_SCK_DELAY,			  \
+		.spi_mode   = (nrf_qspi_spi_mode_t)NRFX_QSPI_CONFIG_MODE,	   \
+		.dpmen	  = false											 \
+	},																  \
+}
+
+void qspiInit()
+{
+	uint32_t i;
+	uint32_t err_code=0;
+
+	err_code = NRF_LOG_INIT(NULL);
+	APP_ERROR_CHECK(err_code);
+
+	NRF_LOG_DEFAULT_BACKENDS_INIT();
+
+	NRF_LOG_INFO("QSPI write and read from example using 24bit addressing mode");
+NRF_LOG_FLUSH();
+	for (i = 0; i < QSPI_TEST_DATA_SIZE; ++i)
+	{
+		m_buffer_tx[i] = (uint8_t)i*0x11;
+	}
+
+	nrf_drv_qspi_config_t config = MY_QSPI;//NRF_DRV_QSPI_DEFAULT_CONFIG;//
+
+	err_code = nrf_drv_qspi_init(&config, qspi_handler, NULL);
+	APP_ERROR_CHECK(err_code);
+	NRF_LOG_INFO("QSPI driver initialized.");
+
+	configure_memory();
+
+	m_finished = false;
+	err_code = nrf_drv_qspi_erase(QSPI_ERASE_LEN_LEN_64KB, 0); //QSPI_ERASE_LEN_LEN_All //QSPI_ERASE_LEN_LEN_4KB
+	APP_ERROR_CHECK(err_code);
+	WAIT_FOR_PERIPH();
+	NRF_LOG_INFO("Process of erasing first block start");
+
+	err_code = nrf_drv_qspi_write(m_buffer_tx, QSPI_TEST_DATA_SIZE, 0);
+	APP_ERROR_CHECK(err_code);
+	WAIT_FOR_PERIPH();
+	NRF_LOG_INFO("Process of writing data start");
+
+	err_code = nrf_drv_qspi_read(m_buffer_rx, QSPI_TEST_DATA_SIZE, 0);
+	WAIT_FOR_PERIPH();
+	NRF_LOG_INFO("Data read");
+
+	NRF_LOG_INFO("Compare...");
+	if (memcmp(m_buffer_tx, m_buffer_rx, QSPI_TEST_DATA_SIZE) == 0)
+	{
+		NRF_LOG_INFO("Data consistent");
+		nrf_gpio_pin_set(LED_PIN);
+	}
+	else
+	{
+		NRF_LOG_INFO("Data inconsistent");
+	}
+
+#ifdef HAS_DISPLAY	
+	Adafruit_GFX_write('\n');SSD1306_display();
+	
+	for( int index = 0; index < 8; ++index )
+	{
+		char chr[3];
+		sprintf( chr, "%02X", m_buffer_tx[index]);
+		Adafruit_GFX_write(chr[0]);
+		Adafruit_GFX_write(chr[1]);
+	}
+
+	Adafruit_GFX_write('\n');SSD1306_display();
+	for( int index = 0; index < 8; ++index )
+	{
+		char chr[3];
+		sprintf( chr, "%02X", m_buffer_rx[index]);
+		Adafruit_GFX_write(chr[0]);
+		Adafruit_GFX_write(chr[1]);
+	}
+	SSD1306_display();
+#endif
+
+	nrf_drv_qspi_uninit();
+NRF_LOG_FLUSH();
+}
+
+
+/////////////////////
+
+void pwm_init(void)  
+{
+	app_pwm_config_t pwm1_cfg = APP_PWM_DEFAULT_CONFIG_1CH(240L, PIN_PIEZO);
+	pwm1_cfg.pin_polarity[0] = APP_PWM_POLARITY_ACTIVE_HIGH;
+
+	APP_ERROR_CHECK(app_pwm_init(&PWM1,&pwm1_cfg,pwm_ready_callback));
+
+	app_pwm_enable(&PWM1);
+}
+
+void pwm_change_frequency(uint16_t freq)
+{
+	app_pwm_uninit(&PWM1);  
+
+	app_pwm_config_t pwm1_cfg = APP_PWM_DEFAULT_CONFIG_1CH(freq, PIN_PIEZO);
+	pwm1_cfg.pin_polarity[0] = APP_PWM_POLARITY_ACTIVE_HIGH;
+
+	APP_ERROR_CHECK(app_pwm_init(&PWM1,&pwm1_cfg,pwm_ready_callback));
+
+	app_pwm_enable(&PWM1);
+}
+
+int main(void) {
+
+	nrf_gpio_cfg_output(LED_PIN);
+	nrf_gpio_pin_set(LED_PIN);
+	nrf_delay_ms(100);
+	nrf_gpio_pin_clear(LED_PIN);
+
+#ifdef NRF52840_XXAA22222
 	nrf_drv_clock_init();
 
 	static const app_usbd_config_t usbd_config = {
@@ -722,6 +1018,88 @@ int main(void) {
 	app_usbd_class_inst_t const * class_cdc_acm = app_usbd_cdc_acm_class_inst_get(&m_app_cdc_acm);
 	app_usbd_class_append(class_cdc_acm);
 #endif
+
+
+///////////////////Display test
+
+#ifdef HAS_DISPLAY
+	ret_code_t err_code = twi_master_init();
+	APP_ERROR_CHECK(err_code);
+
+	SSD1306_begin(SSD1306_SWITCHCAPVCC, 0x3C, false);
+	Adafruit_GFX_init(SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT, SSD1306_drawPixel);
+
+	SSD1306_clearDisplay();
+	SSD1306_display();
+
+
+	char freetitle[] = "FreeSK8";
+	int cindex = 0;
+	Adafruit_GFX_setTextSize(1);
+	Adafruit_GFX_setTextColor(1,0);
+	while( freetitle[cindex] != 0 )
+	{
+		Adafruit_GFX_write(freetitle[ cindex++ ]);
+	}
+	SSD1306_display();
+#endif
+	
+///////////////////////////
+
+	// Test piezo
+	pwm_init();
+	//app_pwm_channel_duty_set(&PWM1, 0, 50);
+	
+	/* 2-channel PWM, 200Hz, output on DK LED pins. 
+	app_pwm_config_t pwm1_cfg = APP_PWM_DEFAULT_CONFIG_1CH(420L, PIN_PIEZO);
+	pwm1_cfg.pin_polarity[0] = APP_PWM_POLARITY_ACTIVE_HIGH;
+	err_code = app_pwm_init(&PWM1,&pwm1_cfg,pwm_ready_callback);
+	APP_ERROR_CHECK(err_code);
+	app_pwm_enable(&PWM1);
+*/
+	//while (false)
+	{
+		for (uint16_t i = 1; i < 100; ++i)
+		{
+			ready_flag = false;
+			/* Set the duty cycle - keep trying until PWM is ready... */
+			while (app_pwm_channel_duty_set(&PWM1, 0, i) == NRF_ERROR_BUSY){}
+#ifdef HAS_DISPLAY
+			Adafruit_GFX_setCursor(0,8);
+			char output[8] = {0};
+			int cindex = 0;
+			sprintf(output,"%d%% ", i);
+			while( output[cindex] != 0 ) { Adafruit_GFX_write(output[ cindex++ ]); }
+			SSD1306_display();
+#endif
+			/* ... or wait for callback. */
+			//while (!ready_flag);
+			//APP_ERROR_CHECK(app_pwm_channel_duty_set(&PWM1, 0, i));
+			nrf_delay_ms(25);
+		}
+		while (app_pwm_channel_duty_set(&PWM1, 0, 0) == NRF_ERROR_BUSY){}
+	}
+	while(false){
+		for(int i =100; i< 800; ++i) {
+			pwm_change_frequency(i);
+#ifdef HAS_DISPLAY
+			Adafruit_GFX_setCursor(0,8);
+			char output[8] = {0};
+			int cindex = 0;
+			sprintf(output,"%dus", i);
+			while( output[cindex] != 0 ) { Adafruit_GFX_write(output[ cindex++ ]); }
+			SSD1306_display();
+#endif
+			nrf_delay_ms(50);
+		}
+	}
+
+////////////////////////////
+
+	//QSPI Testing
+	qspiInit();
+
+/////////////////////////////
 
 	uart_init();
 	app_timer_init();
