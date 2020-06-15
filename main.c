@@ -887,7 +887,7 @@ static void configure_memory()
 		.readoc	 = (nrf_qspi_readoc_t)NRFX_QSPI_CONFIG_READOC,	   \
 		.writeoc	= (nrf_qspi_writeoc_t)NRFX_QSPI_CONFIG_WRITEOC,	 \
 		.addrmode   = (nrf_qspi_addrmode_t)NRFX_QSPI_CONFIG_ADDRMODE,   \
-		.dpmconfig  = false,											\
+		.dpmconfig  = true,											\
 	},																  \
 	.phy_if = {														 \
 		.sck_freq   = (nrf_qspi_frequency_t)NRFX_QSPI_CONFIG_FREQUENCY, \
@@ -911,7 +911,7 @@ void qspiInit()
 NRF_LOG_FLUSH();
 	for (i = 0; i < QSPI_TEST_DATA_SIZE; ++i)
 	{
-		m_buffer_tx[i] = (uint8_t)i*0x11;
+		m_buffer_tx[i] = (uint8_t)(i+1)*0x11;
 	}
 
 	nrf_drv_qspi_config_t config = MY_QSPI;//NRF_DRV_QSPI_DEFAULT_CONFIG;//
@@ -1006,7 +1006,7 @@ int main(void) {
 	nrf_delay_ms(100);
 	nrf_gpio_pin_clear(LED_PIN);
 
-#ifdef NRF52840_XXAA22222
+#ifdef NRF52840_XXAA
 	nrf_drv_clock_init();
 
 	static const app_usbd_config_t usbd_config = {
