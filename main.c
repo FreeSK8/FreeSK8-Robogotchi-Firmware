@@ -74,7 +74,7 @@
 #include "nrf_log_default_backends.h"
 
 //Display
-#define HAS_DISPLAY 1
+//#define HAS_DISPLAY 1
 #ifdef HAS_DISPLAY
 #include "nrf_drv_twi.h"
 const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
@@ -92,13 +92,100 @@ void pwm_ready_callback(uint32_t pwm_id)	// PWM callback function
 	ready_flag = true;
 }
 
+// Button input
+#include "nrf_drv_gpiote.h"
+#define PIN_BUTTON 13
+void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
+{
+    nrf_gpio_pin_set(11);
+	nrf_delay_ms(500);
+	nrf_gpio_pin_clear(11);
+}
+/**
+ * @brief Function for configuring: PIN_BUTTON pin for input
+ * and configures GPIOTE to give an interrupt on pin change.
+ */
+static void gpio_init(void)
+{
+    ret_code_t err_code;
+
+    err_code = nrf_drv_gpiote_init();
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_gpiote_in_config_t in_config = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
+    in_config.pull = NRF_GPIO_PIN_PULLUP;
+
+    err_code = nrf_drv_gpiote_in_init(PIN_BUTTON, &in_config, in_pin_handler);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_gpiote_in_event_enable(PIN_BUTTON, true);
+}
+//
+
+//LITTLEFS
+uint32_t boot_count = 0;
+#include "lfs.h"
+
+int qspi_read(const struct lfs_config *c, lfs_block_t block,
+        lfs_off_t off, void *buffer, lfs_size_t size)
+{
+  uint32_t addr = c->block_size * block + off;
+  uint32_t err_code = nrf_drv_qspi_read((uint8_t*)buffer, size, addr);
+  return err_code;
+}
+
+int qspi_prog(const struct lfs_config *c, lfs_block_t block,
+        lfs_off_t off, const void *buffer, lfs_size_t size)
+{
+  uint32_t addr = c->block_size * block + off;
+  uint32_t err_code = nrf_drv_qspi_write((uint8_t*)&buffer[0], size, addr);
+  APP_ERROR_CHECK(err_code);
+  return err_code;
+} 
+
+int qspi_erase(const struct lfs_config *c, lfs_block_t block)
+{
+  uint32_t addr = c->block_size * block;
+  uint32_t err_code = nrf_drv_qspi_erase(NRF_QSPI_ERASE_LEN_4KB, addr);
+  APP_ERROR_CHECK(err_code);
+  return err_code;
+}
+
+int qspi_sync(const struct lfs_config *c)
+{
+  return LFS_ERR_OK;
+}
+
+// variables used by the filesystem
+static lfs_t lfs;
+static lfs_file_t file;
+
+// configuration of the filesystem is provided by this struct
+const struct lfs_config cfg = {
+    // block device operations
+    .read  = &qspi_read,
+    .prog  = &qspi_prog,
+    .erase = &qspi_erase,
+    .sync  = &qspi_sync,
+
+    // block device configuration
+    .read_size = 4,
+    .prog_size = 4,
+    .block_size = 4096,
+    .block_count = 1024,
+    .cache_size = 32,
+    .lookahead_size = 16,
+    .block_cycles = 500,
+};
+
+///////////////////
 
 #ifndef MODULE_BUILTIN
-#define MODULE_BUILTIN					0
+#define MODULE_BUILTIN					1
 #endif
 
 #ifndef MODULE_FREESK8
-#define MODULE_FREESK8					1
+#define MODULE_FREESK8					0
 #endif
 
 
@@ -779,30 +866,9 @@ static ret_code_t twi_master_init(void)
 
 ////////////////QSPI
 
-static volatile bool m_finished = false;
-
-
 #define QSPI_STD_CMD_WRSR   0x01
 #define QSPI_STD_CMD_RSTEN  0x66
 #define QSPI_STD_CMD_RST	0x99
-
-#define QSPI_TEST_DATA_SIZE 256//8
-
-static uint8_t m_buffer_tx[QSPI_TEST_DATA_SIZE];
-static uint8_t m_buffer_rx[QSPI_TEST_DATA_SIZE];
-
-#define WAIT_FOR_PERIPH() do { \
-		while (!m_finished) {} \
-		m_finished = false;	\
-	} while (0)
-
-
-static void qspi_handler(nrf_drv_qspi_evt_t event, void * p_context)
-{
-	UNUSED_PARAMETER(event);
-	UNUSED_PARAMETER(p_context);
-	m_finished = true;
-}
 
 static void configure_memory()
 {
@@ -832,69 +898,6 @@ static void configure_memory()
 	err_code = nrf_drv_qspi_cinstr_xfer(&cinstr_cfg, &temporary, NULL);
 	APP_ERROR_CHECK(err_code);
 
-///////
-	/*
-	cinstr_cfg.opcode = 0x06;
-	cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_1B;
-	cinstr_cfg.wipwait   = false;
-	 cinstr_cfg.wren	  = false;
-	err_code = nrf_drv_qspi_cinstr_xfer(&cinstr_cfg, &temporary, NULL);
-	APP_ERROR_CHECK(err_code);
-	*/
-}
-
-/*
-#define MY_QSPI														 \
-{																	   \
-	.xip_offset  = NRFX_QSPI_CONFIG_XIP_OFFSET,						 \
-	.pins = {														   \
-	   .sck_pin	 = NRF_GPIO_PIN_MAP(0, 9),						   \
-	   .csn_pin	 = NRF_GPIO_PIN_MAP(0, 2),						   \
-	   .io0_pin	 = NRF_GPIO_PIN_MAP(0, 3),						   \
-	   .io1_pin	 = NRF_GPIO_PIN_MAP(1, 6),						   \
-	   .io2_pin	 = NRF_GPIO_PIN_MAP(1, 10),						  \
-	   .io3_pin	 = NRF_GPIO_PIN_MAP(0, 10),						  \
-	},																  \
-	.irq_priority   = (uint8_t)NRFX_QSPI_CONFIG_IRQ_PRIORITY,		   \
-	.prot_if = {														\
-		.readoc	 = (nrf_qspi_readoc_t)NRFX_QSPI_CONFIG_READOC,	   \
-		.writeoc	= (nrf_qspi_writeoc_t)NRFX_QSPI_CONFIG_WRITEOC,	 \
-		.addrmode   = (nrf_qspi_addrmode_t)NRFX_QSPI_CONFIG_ADDRMODE,   \
-		.dpmconfig  = false,											\
-	},																  \
-	.phy_if = {														 \
-		.sck_freq   = (nrf_qspi_frequency_t)NRFX_QSPI_CONFIG_FREQUENCY, \
-		.sck_delay  = (uint8_t)NRFX_QSPI_CONFIG_SCK_DELAY,			  \
-		.spi_mode   = (nrf_qspi_spi_mode_t)NRFX_QSPI_CONFIG_MODE,	   \
-		.dpmen	  = false											 \
-	},																  \
-}
-*/
-
-#define MY_QSPI														 \
-{																	   \
-	.xip_offset  = NRFX_QSPI_CONFIG_XIP_OFFSET,						 \
-	.pins = {														   \
-	   .sck_pin	 = NRF_GPIO_PIN_MAP(0, 9),						   \
-	   .csn_pin	 = NRF_GPIO_PIN_MAP(0, 2),						   \
-	   .io0_pin	 = NRF_GPIO_PIN_MAP(0, 3),						   \
-	   .io1_pin	 = NRF_GPIO_PIN_MAP(1, 6),						   \
-	   .io2_pin	 = NRF_GPIO_PIN_MAP(1, 10),						  \
-	   .io3_pin	 = NRF_GPIO_PIN_MAP(0, 10),						  \
-	},																  \
-	.irq_priority   = (uint8_t)NRFX_QSPI_CONFIG_IRQ_PRIORITY,		   \
-	.prot_if = {														\
-		.readoc	 = (nrf_qspi_readoc_t)NRFX_QSPI_CONFIG_READOC,	   \
-		.writeoc	= (nrf_qspi_writeoc_t)NRFX_QSPI_CONFIG_WRITEOC,	 \
-		.addrmode   = (nrf_qspi_addrmode_t)NRFX_QSPI_CONFIG_ADDRMODE,   \
-		.dpmconfig  = true,											\
-	},																  \
-	.phy_if = {														 \
-		.sck_freq   = (nrf_qspi_frequency_t)NRFX_QSPI_CONFIG_FREQUENCY, \
-		.sck_delay  = (uint8_t)NRFX_QSPI_CONFIG_SCK_DELAY,			  \
-		.spi_mode   = (nrf_qspi_spi_mode_t)NRFX_QSPI_CONFIG_MODE,	   \
-		.dpmen	  = false											 \
-	},																  \
 }
 
 void qspiInit()
@@ -907,73 +910,68 @@ void qspiInit()
 
 	NRF_LOG_DEFAULT_BACKENDS_INIT();
 
-	NRF_LOG_INFO("QSPI write and read from example using 24bit addressing mode");
-NRF_LOG_FLUSH();
-	for (i = 0; i < QSPI_TEST_DATA_SIZE; ++i)
-	{
-		m_buffer_tx[i] = (uint8_t)(i+1)*0x11;
-	}
+	NRF_LOG_INFO("QSPI initializing");
+	NRF_LOG_FLUSH();
 
-	nrf_drv_qspi_config_t config = MY_QSPI;//NRF_DRV_QSPI_DEFAULT_CONFIG;//
+	nrf_drv_qspi_config_t config = NRF_DRV_QSPI_DEFAULT_CONFIG;
 
-	err_code = nrf_drv_qspi_init(&config, qspi_handler, NULL);
+	err_code = nrf_drv_qspi_init(&config, NULL, NULL);
 	APP_ERROR_CHECK(err_code);
-	NRF_LOG_INFO("QSPI driver initialized.");
+	NRF_LOG_INFO("QSPI driver initialized");
 
 	configure_memory();
 
-	m_finished = false;
-	err_code = nrf_drv_qspi_erase(QSPI_ERASE_LEN_LEN_64KB, 0); //QSPI_ERASE_LEN_LEN_All //QSPI_ERASE_LEN_LEN_4KB
-	APP_ERROR_CHECK(err_code);
-	WAIT_FOR_PERIPH();
-	NRF_LOG_INFO("Process of erasing first block start");
-
-	err_code = nrf_drv_qspi_write(m_buffer_tx, QSPI_TEST_DATA_SIZE, 0);
-	APP_ERROR_CHECK(err_code);
-	WAIT_FOR_PERIPH();
-	NRF_LOG_INFO("Process of writing data start");
-
-	err_code = nrf_drv_qspi_read(m_buffer_rx, QSPI_TEST_DATA_SIZE, 0);
-	WAIT_FOR_PERIPH();
-	NRF_LOG_INFO("Data read");
-
-	NRF_LOG_INFO("Compare...");
-	if (memcmp(m_buffer_tx, m_buffer_rx, QSPI_TEST_DATA_SIZE) == 0)
-	{
-		NRF_LOG_INFO("Data consistent");
-		nrf_gpio_pin_set(LED_PIN);
-	}
-	else
-	{
-		NRF_LOG_INFO("Data inconsistent");
-	}
-
-#ifdef HAS_DISPLAY	
-	Adafruit_GFX_write('\n');SSD1306_display();
-	
-	for( int index = 0; index < 8; ++index )
-	{
-		char chr[3];
-		sprintf( chr, "%02X", m_buffer_tx[index]);
-		Adafruit_GFX_write(chr[0]);
-		Adafruit_GFX_write(chr[1]);
-	}
-
-	Adafruit_GFX_write('\n');SSD1306_display();
-	for( int index = 0; index < 8; ++index )
-	{
-		char chr[3];
-		sprintf( chr, "%02X", m_buffer_rx[index]);
-		Adafruit_GFX_write(chr[0]);
-		Adafruit_GFX_write(chr[1]);
-	}
-	SSD1306_display();
-#endif
-
-	nrf_drv_qspi_uninit();
-NRF_LOG_FLUSH();
+	NRF_LOG_FLUSH();
 }
 
+void littlefsInit()
+{
+	NRF_LOG_INFO("LittleFS initializing");
+    NRF_LOG_FLUSH();
+
+	// mount the filesystem
+    int err = lfs_mount(&lfs, &cfg);
+
+    // reformat if we can't mount the filesystem
+    // this should only happen on the first boot
+    if (err) {
+        NRF_LOG_INFO("LittleFS needs to format the storage");
+        NRF_LOG_FLUSH();
+        lfs_format(&lfs, &cfg);
+        lfs_mount(&lfs, &cfg);
+    }
+    NRF_LOG_INFO("LittleFS initialized");
+    NRF_LOG_FLUSH();
+
+    // read current count  
+    lfs_file_open(&lfs, &file, "boot_count", LFS_O_RDWR | LFS_O_CREAT);
+    lfs_file_read(&lfs, &file, &boot_count, sizeof(boot_count));
+    NRF_LOG_INFO("Read file complete");
+
+    // update boot count
+    boot_count += 1;
+    lfs_file_rewind(&lfs, &file);
+    lfs_file_write(&lfs, &file, &boot_count, sizeof(boot_count));
+    NRF_LOG_INFO("Write file complete");
+
+    // storage is not updated until the file is closed
+    lfs_file_close(&lfs, &file);
+    NRF_LOG_INFO("Close file complete");
+
+	// create a directory in root
+	lfs_mkdir(&lfs, "/FreeSK8Logs");
+
+	// list the contents of the root directory
+	NRF_LOG_INFO("Contents of /");
+	lfs_dir_t directory;
+	struct lfs_info info;
+	lfs_dir_open(&lfs,&directory,"/");
+	while(lfs_dir_read(&lfs,&directory,&info)){
+	  NRF_LOG_INFO("%s %dbytes %s", info.type == LFS_TYPE_REG ? "FIL" : "DIR", info.size, info.name);
+	}
+
+	NRF_LOG_FLUSH();
+}
 
 /////////////////////
 
@@ -1003,7 +1001,7 @@ int main(void) {
 
 	nrf_gpio_cfg_output(LED_PIN);
 	nrf_gpio_pin_set(LED_PIN);
-	nrf_delay_ms(100);
+	nrf_delay_ms(1000);
 	nrf_gpio_pin_clear(LED_PIN);
 
 #ifdef NRF52840_XXAA
@@ -1046,20 +1044,17 @@ int main(void) {
 	
 ///////////////////////////
 
+	//Button Init
+	gpio_init();
+
+////////////////////////////
+
 	// Test piezo
 	pwm_init();
-	//app_pwm_channel_duty_set(&PWM1, 0, 50);
-	
-	/* 2-channel PWM, 200Hz, output on DK LED pins. 
-	app_pwm_config_t pwm1_cfg = APP_PWM_DEFAULT_CONFIG_1CH(420L, PIN_PIEZO);
-	pwm1_cfg.pin_polarity[0] = APP_PWM_POLARITY_ACTIVE_HIGH;
-	err_code = app_pwm_init(&PWM1,&pwm1_cfg,pwm_ready_callback);
-	APP_ERROR_CHECK(err_code);
-	app_pwm_enable(&PWM1);
-*/
+
 	//while (false)
 	{
-		for (uint16_t i = 1; i < 100; ++i)
+		for (uint16_t i = 50; i < 100; ++i)
 		{
 			ready_flag = false;
 			/* Set the duty cycle - keep trying until PWM is ready... */
@@ -1098,6 +1093,7 @@ int main(void) {
 
 	//QSPI Testing
 	qspiInit();
+	littlefsInit();
 
 /////////////////////////////
 
