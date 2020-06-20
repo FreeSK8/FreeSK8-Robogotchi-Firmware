@@ -123,6 +123,8 @@ SRC_FILES += \
   $(SDK_ROOT)/integration/nrfx/legacy/nrf_drv_ppi.c \
   $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_ppi.c \
   $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_qspi.c \
+  $(SDK_ROOT)/external/littlefs/lfs.c \
+  $(SDK_ROOT)/external/littlefs/lfs_util.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \
@@ -259,7 +261,8 @@ INC_FOLDERS += \
   $(SDK_ROOT)/components/libraries/log/src \
   . \
   sdk_mod \
-  SSD1306
+  SSD1306 \
+  $(SDK_ROOT)/external/littlefs/
 
 # Libraries common to all targets
 LIB_FILES += \
