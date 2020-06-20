@@ -1413,7 +1413,7 @@
 #endif
 // <o> GPIOTE_CONFIG_NUM_OF_LOW_POWER_EVENTS - Number of lower power input pins 
 #ifndef GPIOTE_CONFIG_NUM_OF_LOW_POWER_EVENTS
-#define GPIOTE_CONFIG_NUM_OF_LOW_POWER_EVENTS 4
+#define GPIOTE_CONFIG_NUM_OF_LOW_POWER_EVENTS 1
 #endif
 
 // <o> GPIOTE_CONFIG_IRQ_PRIORITY  - Interrupt priority
@@ -5115,32 +5115,32 @@
 
 // <s> QSPI_PIN_SCK - SCK pin value.
 #ifndef QSPI_PIN_SCK
-#define QSPI_PIN_SCK 9
+#define QSPI_PIN_SCK NRF_QSPI_PIN_NOT_CONNECTED
 #endif
 
 // <s> QSPI_PIN_CSN - CSN pin value.
 #ifndef QSPI_PIN_CSN
-#define QSPI_PIN_CSN 2
+#define QSPI_PIN_CSN NRF_QSPI_PIN_NOT_CONNECTED
 #endif
 
 // <s> QSPI_PIN_IO0 - IO0 pin value.
 #ifndef QSPI_PIN_IO0
-#define QSPI_PIN_IO0 3
+#define QSPI_PIN_IO0 NRF_QSPI_PIN_NOT_CONNECTED
 #endif
 
 // <s> QSPI_PIN_IO1 - IO1 pin value.
 #ifndef QSPI_PIN_IO1
-#define QSPI_PIN_IO1 38 //NRF_GPIO_PIN_MAP(1, 6)
+#define QSPI_PIN_IO1 NRF_QSPI_PIN_NOT_CONNECTED
 #endif
 
 // <s> QSPI_PIN_IO2 - IO2 pin value.
 #ifndef QSPI_PIN_IO2
-#define QSPI_PIN_IO2 42 //NRF_GPIO_PIN_MAP(1, 10)
+#define QSPI_PIN_IO2 NRF_QSPI_PIN_NOT_CONNECTED
 #endif
 
 // <s> QSPI_PIN_IO3 - IO3 pin value.
 #ifndef QSPI_PIN_IO3
-#define QSPI_PIN_IO3 10
+#define QSPI_PIN_IO3 NRF_QSPI_PIN_NOT_CONNECTED
 #endif
 
 // <o> QSPI_CONFIG_IRQ_PRIORITY  - Interrupt priority
