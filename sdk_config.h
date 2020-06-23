@@ -452,7 +452,7 @@
 // <e> BLE_NUS_ENABLED - ble_nus - Nordic UART Service
 //==========================================================
 #ifndef BLE_NUS_ENABLED
-#define BLE_NUS_ENABLED 1
+#define BLE_NUS_ENABLED 0
 #endif
 // <e> BLE_NUS_CONFIG_LOG_ENABLED - Enables logging in the module.
 //==========================================================

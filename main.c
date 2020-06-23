@@ -21,7 +21,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#include "fds.h"
 #include "nrf_fstorage.h"
 #include "nrf_drv_qspi.h"
 
@@ -37,7 +36,7 @@
 #include "nrf_ble_gatt.h"
 #include "nrf_ble_qwr.h"
 #include "app_timer.h"
-#include "ble_nus.h"
+#include "ble_fus.h"
 #include "app_uart.h"
 #include "app_util_platform.h"
 #include "nrf_pwr_mgmt.h"
@@ -138,7 +137,7 @@ int qspi_prog(const struct lfs_config *c, lfs_block_t block,
         lfs_off_t off, const void *buffer, lfs_size_t size)
 {
   uint32_t addr = c->block_size * block + off;
-  uint32_t err_code = nrf_drv_qspi_write((uint8_t*)&buffer[0], size, addr);
+  uint32_t err_code = nrf_drv_qspi_write((uint8_t*)&buffer[0], size, addr); //TODO: dereferencing 'void *' pointer
   APP_ERROR_CHECK(err_code);
   return err_code;
 } 
@@ -207,7 +206,7 @@ const struct lfs_config cfg = {
 #endif
 #endif
 
-#define NUS_SERVICE_UUID_TYPE		   BLE_UUID_TYPE_VENDOR_BEGIN				  /**< UUID type for the Nordic UART Service (vendor specific). */
+#define FUS_SERVICE_UUID_TYPE		   BLE_UUID_TYPE_VENDOR_BEGIN				  /**< UUID type for the FreeSK8 UART Service (vendor specific). */
 
 #define APP_BLE_OBSERVER_PRIO		   3										   /**< Application's BLE observer priority. You shouldn't need to modify this value. */
 
@@ -274,16 +273,16 @@ const struct lfs_config cfg = {
 APP_TIMER_DEF(m_packet_timer);
 APP_TIMER_DEF(m_nrf_timer);
 
-BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT);								   /**< BLE NUS service instance. */
+BLE_FUS_DEF(m_fus, NRF_SDH_BLE_TOTAL_LINK_COUNT);								   /**< BLE FUS service instance. */
 NRF_BLE_GATT_DEF(m_gatt);														   /**< GATT module instance. */
 NRF_BLE_QWR_DEF(m_qwr);															 /**< Context for the Queued Write module.*/
 BLE_ADVERTISING_DEF(m_advertising);												 /**< Advertising module instance. */
 
 static uint16_t   m_conn_handle		  = BLE_CONN_HANDLE_INVALID;				 /**< Handle of the current connection. */
-static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;			/**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
+static uint16_t   m_ble_fus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;			/**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static ble_uuid_t m_adv_uuids[]		  =										  /**< Universally unique service identifier. */
 {
-		{BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}
+		{BLE_UUID_FUS_SERVICE, FUS_SERVICE_UUID_TYPE}
 };
 static volatile bool					m_is_enabled = true;
 static volatile bool					m_uart_error = false;
@@ -446,18 +445,48 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
 	APP_ERROR_HANDLER(nrf_error);
 }
 
-static void nus_data_handler(ble_nus_evt_t * p_evt) {
-	if (p_evt->type == BLE_NUS_EVT_RX_DATA) {
+static void ble_send_logbuffer(unsigned char *data, unsigned int len) {
+	if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
+		uint32_t err_code = NRF_SUCCESS;
+		int ind = 0;
+
+		while (len > 0) {
+			if (m_conn_handle == BLE_CONN_HANDLE_INVALID ||
+					(err_code != NRF_ERROR_BUSY && err_code != NRF_SUCCESS && err_code != NRF_ERROR_RESOURCES)) {
+				break;
+			}
+
+			uint16_t max_len = m_ble_fus_max_data_len;
+			uint16_t tmp_len = len > max_len ? max_len : len;
+			err_code = ble_fus_logdata_send(&m_fus, data + ind, &tmp_len, m_conn_handle);
+
+			if (err_code != NRF_ERROR_RESOURCES && err_code != NRF_ERROR_BUSY) {
+				len -= tmp_len;
+				ind += tmp_len;
+			}
+		}
+	}
+}
+
+static void fus_data_handler(ble_fus_evt_t * p_evt) {
+	if (p_evt->type == BLE_FUS_EVT_RX_DATA) {
 		for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++) {
 			packet_process_byte(p_evt->params.rx_data.p_data[i], PACKET_BLE);
 		}
+	}
+	else if (p_evt->type == BLE_FUS_EVT_RXLOG_DATA) {
+		for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++) {
+			NRF_LOG_INFO("rx_data[%d] = %c", i, p_evt->params.rx_data.p_data[i]);
+			NRF_LOG_FLUSH();
+		}
+		ble_send_logbuffer((unsigned char *)"uPoop", 5);
 	}
 
 }
 
 static void services_init(void) {
 	uint32_t		   err_code;
-	ble_nus_init_t	 nus_init;
+	ble_fus_init_t	 fus_init;
 	nrf_ble_qwr_init_t qwr_init = {0};
 
 	// Initialize Queued Write Module.
@@ -466,12 +495,12 @@ static void services_init(void) {
 	err_code = nrf_ble_qwr_init(&m_qwr, &qwr_init);
 	APP_ERROR_CHECK(err_code);
 
-	// Initialize NUS.
-	memset(&nus_init, 0, sizeof(nus_init));
+	// Initialize FUS.
+	memset(&fus_init, 0, sizeof(fus_init));
 
-	nus_init.data_handler = nus_data_handler;
+	fus_init.data_handler = fus_data_handler;
 
-	err_code = ble_nus_init(&m_nus, &nus_init);
+	err_code = ble_fus_init(&m_fus, &fus_init);
 	APP_ERROR_CHECK(err_code);
 }
 
@@ -601,7 +630,7 @@ static void ble_stack_init(void) {
 
 void gatt_evt_handler(nrf_ble_gatt_t * p_gatt, nrf_ble_gatt_evt_t const * p_evt) {
 	if ((m_conn_handle == p_evt->conn_handle) && (p_evt->evt_id == NRF_BLE_GATT_EVT_ATT_MTU_UPDATED)) {
-		m_ble_nus_max_data_len = p_evt->params.att_mtu_effective - OPCODE_LENGTH - HANDLE_LENGTH;
+		m_ble_fus_max_data_len = p_evt->params.att_mtu_effective - OPCODE_LENGTH - HANDLE_LENGTH;
 //		ble_printf("Data len is set to 0x%X(%d)", m_ble_nus_max_data_len, m_ble_nus_max_data_len);
 	}
 }
@@ -715,9 +744,9 @@ static void ble_send_buffer(unsigned char *data, unsigned int len) {
 				break;
 			}
 
-			uint16_t max_len = m_ble_nus_max_data_len;
+			uint16_t max_len = m_ble_fus_max_data_len;
 			uint16_t tmp_len = len > max_len ? max_len : len;
-			err_code = ble_nus_data_send(&m_nus, data + ind, &tmp_len, m_conn_handle);
+			err_code = ble_fus_data_send(&m_fus, data + ind, &tmp_len, m_conn_handle);
 
 			if (err_code != NRF_ERROR_RESOURCES && err_code != NRF_ERROR_BUSY) {
 				len -= tmp_len;
