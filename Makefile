@@ -117,6 +117,7 @@ SRC_FILES += \
   esb_timeslot.c \
   SSD1306/SSD1306.c \
   SSD1306/Adafruit_GFX.c \
+  command_interface.c \
   $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_timer.c \
   $(SDK_ROOT)/components/libraries/pwm/app_pwm.c \
   $(SDK_ROOT)/integration/nrfx/legacy/nrf_drv_ppi.c \

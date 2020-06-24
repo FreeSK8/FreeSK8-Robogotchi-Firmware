@@ -72,6 +72,8 @@
 #include "nrf_log_ctrl.h"
 #include "nrf_log_default_backends.h"
 
+#include "command_interface.h"
+
 //Display
 //#define HAS_DISPLAY 1
 #ifdef HAS_DISPLAY
@@ -445,7 +447,7 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
 	APP_ERROR_HANDLER(nrf_error);
 }
 
-static void ble_send_logbuffer(unsigned char *data, unsigned int len) {
+void ble_send_logbuffer(unsigned char *data, unsigned int len) {
 	if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
 		uint32_t err_code = NRF_SUCCESS;
 		int ind = 0;
@@ -476,10 +478,12 @@ static void fus_data_handler(ble_fus_evt_t * p_evt) {
 	}
 	else if (p_evt->type == BLE_FUS_EVT_RXLOG_DATA) {
 		for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++) {
-			NRF_LOG_INFO("rx_data[%d] = %c", i, p_evt->params.rx_data.p_data[i]);
-			NRF_LOG_FLUSH();
+			//NRF_LOG_INFO("rx_data[%d] = %c", i, p_evt->params.rx_data.p_data[i]);
+			//NRF_LOG_FLUSH();
+			//CRITICAL_REGION_ENTER();
+			command_interface_process_byte(p_evt->params.rx_data.p_data[i]);
+			//CRITICAL_REGION_EXIT();
 		}
-		ble_send_logbuffer((unsigned char *)"uPoop", 5);
 	}
 
 }
@@ -601,8 +605,14 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
 		// Disconnect on GATT Server timeout event.
 		sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
 		break;
-
+	case BLE_GATTS_EVT_HVN_TX_COMPLETE:
+		NRF_LOG_INFO("TX Complete");
+		NRF_LOG_FLUSH();
+		continueFileTransfer();
+	break;
 	default:
+		NRF_LOG_INFO("p_ble_evt->header.evt_id %ld", p_ble_evt->header.evt_id);
+		NRF_LOG_FLUSH();
 		// No implementation needed.
 		break;
 	}
@@ -931,7 +941,6 @@ static void configure_memory()
 
 void qspiInit()
 {
-	uint32_t i;
 	uint32_t err_code=0;
 
 	err_code = NRF_LOG_INIT(NULL);
@@ -964,7 +973,7 @@ void littlefsInit()
     // reformat if we can't mount the filesystem
     // this should only happen on the first boot
     if (err) {
-        NRF_LOG_INFO("LittleFS needs to format the storage");
+        NRF_LOG_WARNING("LittleFS needs to format the storage");
         NRF_LOG_FLUSH();
         lfs_format(&lfs, &cfg);
         lfs_mount(&lfs, &cfg);
@@ -975,30 +984,63 @@ void littlefsInit()
     // read current count  
     lfs_file_open(&lfs, &file, "boot_count", LFS_O_RDWR | LFS_O_CREAT);
     lfs_file_read(&lfs, &file, &boot_count, sizeof(boot_count));
-    NRF_LOG_INFO("Read file complete");
+    NRF_LOG_INFO("Read file complete. Boot count: %d", boot_count);
 
     // update boot count
     boot_count += 1;
     lfs_file_rewind(&lfs, &file);
     lfs_file_write(&lfs, &file, &boot_count, sizeof(boot_count));
-    NRF_LOG_INFO("Write file complete");
+    NRF_LOG_INFO("Write file complete. Boot count incremented");
 
     // storage is not updated until the file is closed
     lfs_file_close(&lfs, &file);
     NRF_LOG_INFO("Close file complete");
 
-	// create a directory in root
-	lfs_mkdir(&lfs, "/FreeSK8Logs");
-
-	// list the contents of the root directory
-	NRF_LOG_INFO("Contents of /");
+	// open the log directory, create directory if needed
 	lfs_dir_t directory;
-	struct lfs_info info;
-	lfs_dir_open(&lfs,&directory,"/");
-	while(lfs_dir_read(&lfs,&directory,&info)){
-	  NRF_LOG_INFO("%s %dbytes %s", info.type == LFS_TYPE_REG ? "FIL" : "DIR", info.size, info.name);
+	if( lfs_dir_open(&lfs, &directory, "/FreeSK8Logs") < 0 )
+	{
+		NRF_LOG_INFO("Creating /FreeSK8Logs");
+		// create a directory in root
+		lfs_mkdir(&lfs, "/FreeSK8Logs");
+		lfs_dir_open(&lfs,&directory,"/FreeSK8Logs");
 	}
 
+/*
+	// create a few files for debugging purposes only - DO NOT USE
+	char filename[128];
+	static char * demolog = "2020-06-20T20:26:43.3,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
+			"2020-06-20T20:26:42.0,position,23.428,-95.68598,12,15.0,0.6,-1,,\n"\
+			"2020-06-20T20:26:43.8,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
+			"2020-06-20T20:26:44.4,values,41.4,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
+			"2020-06-20T20:26:45.0,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
+			"2020-06-20T20:26:44.0,position,23.4279,-95.68599,9,15.0,0.2,0,,\n"\
+			"2020-06-20T20:26:45.6,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
+			"2020-06-20T20:26:46.1,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
+			"2020-06-20T20:26:45.0,position,23.4279,-95.68599,7,15.0,0.3,0,,\n"\
+			"2020-06-20T20:26:46.7,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n";
+
+	for( int i = 0; i < 8; ++i )
+	{
+		sprintf( filename, "/FreeSK8Logs/2020-06-20T20_26_42_0%d", i);
+		lfs_file_open(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT);
+		lfs_file_rewind(&lfs, &file);
+		lfs_file_write(&lfs, &file, demolog, strlen(demolog));
+		lfs_file_close(&lfs, &file);
+	}
+*/
+	
+	// list the contents of the log directory
+	NRF_LOG_INFO("Contents of /FreeSK8Logs");
+
+	struct lfs_info entryinfo;
+	while(lfs_dir_read(&lfs,&directory,&entryinfo)){
+		NRF_LOG_INFO("%s %d bytes %s", entryinfo.type == LFS_TYPE_REG ? "FILE" : "DIR ", entryinfo.size, entryinfo.name);
+		NRF_LOG_FLUSH();
+	}
+
+//lfs_dir_close(&lfs, &directory);
+	NRF_LOG_INFO("Directory listing complete");
 	NRF_LOG_FLUSH();
 }
 
@@ -1135,6 +1177,8 @@ int main(void) {
 	services_init();
 	advertising_init();
 	conn_params_init();
+	command_interface_init(&ble_send_logbuffer, &lfs);
+
 
 	(void)set_enabled;
 
