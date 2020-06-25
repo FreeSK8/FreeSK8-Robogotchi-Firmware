@@ -4,7 +4,7 @@
 
 void command_interface_process_byte( char incoming );
 void command_interface_init(void (*ble_send_logbuffer)(unsigned char *, unsigned int), lfs_t *lfs );
-void continueFileTransfer();
+void command_interface_continue_transfer();
 
 
 #endif

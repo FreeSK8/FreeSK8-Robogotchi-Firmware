@@ -52,6 +52,7 @@
 #define NRF_LOG_LEVEL       0
 #endif // BLE_FUS_CONFIG_LOG_ENABLED
 #include "nrf_log.h"
+#include "nrf_log_ctrl.h"
 NRF_LOG_MODULE_REGISTER();
 
 #define BLE_UUID_FUS_TXLOG_CHARACTERISTIC 0x0005               /**< The UUID of the TX Logging Characteristic. */
@@ -270,6 +271,8 @@ void ble_fus_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context)
 
         case BLE_GATTS_EVT_HVN_TX_COMPLETE:
             on_hvx_tx_complete(p_fus, p_ble_evt);
+            NRF_LOG_INFO("BLE_GATTS_EVT_HVN_TX_COMPLETE BLE_GATTS_EVT_HVN_TX_COMPLETE");
+            NRF_LOG_FLUSH();
             break;
 
         default:

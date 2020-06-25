@@ -580,8 +580,8 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
 	case BLE_GAP_EVT_PHY_UPDATE_REQUEST: {
 		ble_gap_phys_t const phys =
 		{
-				.rx_phys = BLE_GAP_PHY_AUTO,
-				.tx_phys = BLE_GAP_PHY_AUTO,
+			.rx_phys = BLE_GAP_PHY_AUTO,
+			.tx_phys = BLE_GAP_PHY_AUTO,
 		};
 		sd_ble_gap_phy_update(p_ble_evt->evt.gap_evt.conn_handle, &phys);
 	} break;
@@ -605,10 +605,16 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
 		// Disconnect on GATT Server timeout event.
 		sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
 		break;
+	case BLE_GATTS_EVT_WRITE:
 	case BLE_GATTS_EVT_HVN_TX_COMPLETE:
-		NRF_LOG_INFO("TX Complete");
-		NRF_LOG_FLUSH();
-		continueFileTransfer();
+		//TODO: determine which characteristic this event is for
+		//if(p_ble_evt->evt.gatts_evt.params.write.handle == m_fus.rxlog_handles.value_handle || 
+		//  p_ble_evt->evt.gatts_evt.params.write.handle == m_fus.rxlog_handles.cccd_handle ||
+		//  p_ble_evt->evt.gatts_evt.params.write.handle == m_fus.rxlog_handles.sccd_handle)
+		//^^None of the above after the first chunk.
+		{
+			command_interface_continue_transfer();
+		}
 	break;
 	default:
 		NRF_LOG_INFO("p_ble_evt->header.evt_id %ld", p_ble_evt->header.evt_id);
@@ -972,7 +978,7 @@ void littlefsInit()
 
     // reformat if we can't mount the filesystem
     // this should only happen on the first boot
-    if (err) {
+	if (err) {
         NRF_LOG_WARNING("LittleFS needs to format the storage");
         NRF_LOG_FLUSH();
         lfs_format(&lfs, &cfg);
@@ -1022,7 +1028,7 @@ void littlefsInit()
 
 	for( int i = 0; i < 8; ++i )
 	{
-		sprintf( filename, "/FreeSK8Logs/2020-06-20T20_26_42_0%d", i);
+		sprintf( filename, "/FreeSK8Logs/2020-06-20T20:26:4%d", i);
 		lfs_file_open(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT);
 		lfs_file_rewind(&lfs, &file);
 		lfs_file_write(&lfs, &file, demolog, strlen(demolog));
