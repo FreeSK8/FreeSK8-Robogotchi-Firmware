@@ -115,4 +115,30 @@ typedef struct {
 	int initialUpdateDone;
 } ATTITUDE_INFO;
 
+typedef struct {
+	double v_in;
+	double temp_mos;
+	double temp_mos_1;
+	double temp_mos_2;
+	double temp_mos_3;
+	double temp_motor;
+	double current_motor;
+	double current_in;
+	double foc_id;
+	double foc_iq;
+	double rpm;
+	double duty_now;
+	double amp_hours;
+	double amp_hours_charged;
+	double watt_hours;
+	double watt_hours_charged;
+	int tachometer;
+	int tachometer_abs;
+	double position;
+	uint8_t fault_code;
+	int vesc_id;
+	double vd;
+	double vq;
+} TELEMETRY_DATA;
+
 #endif /* DATATYPES_H_ */

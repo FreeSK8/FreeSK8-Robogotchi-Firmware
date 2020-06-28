@@ -1,5 +1,6 @@
 #include "command_interface.h"
 
+#include <time.h>
 #include <stdio.h>
 #include "stdint.h"
 #include "string.h"
@@ -7,7 +8,8 @@
 #include "nrf_log_ctrl.h"
 #include "nrf_ble_gatt.h"
 
-#define MAX_COMMAND_LEN 32
+extern int log_file_stop();
+extern void log_file_start();
 
 static lfs_file_t file;
 static lfs_dir_t directory;
@@ -16,16 +18,8 @@ static int32_t bytes_sent = -1; //file.ctz.size;
 void (*m_ble_tx_logbuffer)(unsigned char *data, unsigned int len);
 lfs_t *m_lfs;
 
-struct command_struct{
-    char command[MAX_COMMAND_LEN];
-    void (*action)(char*);
-    struct command_struct *next;
-} ;
-
-struct command_struct CommandList[10];
-
 static int command_input_index = 0;
-static char command_input_buffer[ MAX_COMMAND_LEN + 1 ] = { 0 };
+static char command_input_buffer[ 128 ] = { 0 };
 static unsigned char command_response_buffer[ 128 ];
 
 void command_interface_init(void (*ble_send_logbuffer)(unsigned char *, unsigned int), lfs_t *lfs)
@@ -42,36 +36,76 @@ enum{
     TRANSFER_MODE_CAT,
 };
 
-uint8_t transferMode = TRANSFER_MODE_IDLE;
+extern time_t currentTime;
+extern struct tm * tmTime;
+
+static volatile uint8_t transferMode = TRANSFER_MODE_IDLE;
 
 void command_interface_process_byte(char incoming)
 {
     command_input_buffer[ command_input_index++ ] = incoming;
     
-    if(command_input_index >= MAX_COMMAND_LEN)
+    if(command_input_index >= sizeof(command_input_buffer))
     {
         command_input_index = 0;
         command_input_buffer[ command_input_index ] = 0;
-        
+
         return;
     }
 
-    if(incoming == '~' && strlen(command_input_buffer) > 0) //TODO: ~null~ terminate after debugging
+    if(incoming == '~' && strlen(command_input_buffer) >0) //TODO: ~null~ terminate after debugging
     {
-        if(strncmp(command_input_buffer, "ls", 2) == 0)
+        if(strncmp(command_input_buffer, "log", 3) == 0)
         {
-            NRF_LOG_INFO("command_interface: ls (list files) command received");
+            if(strncmp(command_input_buffer + 3, "start", 5) == 0)
+            {
+                NRF_LOG_INFO("command_interface: logstart command received");
+                NRF_LOG_FLUSH();
+                log_file_start();
+            }
+            else if(strncmp(command_input_buffer + 3, "stop", 4) == 0)
+            {
+                NRF_LOG_INFO("command_interface: logstop command received");
+                NRF_LOG_FLUSH();
+                log_file_stop();
+            }
+
+        }
+        else if(strncmp(command_input_buffer, "settime ", 8) == 0)
+        {
+            char* timepointer = command_input_buffer + 8;
+            int syear, smonth, sday, shour, sminute, ssecond;
+            sscanf( timepointer, "%d:%d:%dT%d:%d:%d", &syear, &smonth, &sday, &shour, &sminute, &ssecond );
+
+            NRF_LOG_INFO("command_interface: settime command received");
+            NRF_LOG_FLUSH();
+
+            tmTime->tm_year = syear - 1900;
+            tmTime->tm_mon = smonth - 1;
+            tmTime->tm_mday = sday;
+            tmTime->tm_hour = shour;
+            tmTime->tm_min = sminute;
+            tmTime->tm_sec = ssecond;
+
+            currentTime = mktime(tmTime);
+        }
+        else if(strncmp(command_input_buffer, "ls", 2) == 0)
+        {
             // open the log directory
             lfs_dir_open(m_lfs, &directory, "/FreeSK8Logs");
 
             sprintf((char *)command_response_buffer, "ls,/FreeSK8Logs\n");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
           
+            NRF_LOG_INFO("command_interface: ls (list files) command received: %s", command_response_buffer);
+            NRF_LOG_FLUSH();
+
             transferMode = TRANSFER_MODE_LS;
         }
         else if(strncmp(command_input_buffer, "fc", 2) == 0)
         {
             NRF_LOG_INFO("command_interface: fc (file count) command received");
+            NRF_LOG_FLUSH();
             uint16_t file_count = 0;
             uint32_t file_bytes_total = 0;
             // open the log directory
@@ -86,6 +120,7 @@ void command_interface_process_byte(char incoming)
                     file_bytes_total += entryinfo.size;
                 }
             }
+
             NRF_LOG_INFO("File Count: %d, Total Size: %d bytes", file_count, file_bytes_total);
             NRF_LOG_FLUSH();
             // returning fc,filecount,totalsize
@@ -152,12 +187,12 @@ void command_interface_continue_transfer()
             return;
         case TRANSFER_MODE_LS:
         {
-            NRF_LOG_INFO("command_interface_continue_transfer(TRANSFER_MODE_LS)");
-            NRF_LOG_FLUSH();
             struct lfs_info entryinfo;
             int readresp = lfs_dir_read(m_lfs,&directory,&entryinfo);
             if(readresp)
             {
+                NRF_LOG_INFO("command_interface_continue_transfer(TRANSFER_MODE_LS) %s,%ld", entryinfo.name,  entryinfo.size);
+                NRF_LOG_FLUSH();
                 //NRF_LOG_INFO("%s,%d,bytes,%s", entryinfo.type == LFS_TYPE_REG ? "FILE" : "DIR ", entryinfo.size, entryinfo.name);
                 //NRF_LOG_FLUSH();
                 switch(entryinfo.type)

@@ -73,6 +73,9 @@
 #include "nrf_log_default_backends.h"
 
 #include "command_interface.h"
+#include <time.h>
+
+static volatile TELEMETRY_DATA esc_telemetry;
 
 //Display
 //#define HAS_DISPLAY 1
@@ -160,6 +163,13 @@ int qspi_sync(const struct lfs_config *c)
 // variables used by the filesystem
 static lfs_t lfs;
 static lfs_file_t file;
+
+
+// temporary time tracking intil RTC
+time_t currentTime;
+struct tm * tmTime;
+static char datetimestring[ 64 ] = { 0 };
+static volatile bool log_file_active = false;
 
 // configuration of the filesystem is provided by this struct
 const struct lfs_config cfg = {
@@ -274,6 +284,7 @@ const struct lfs_config cfg = {
 // Private variables
 APP_TIMER_DEF(m_packet_timer);
 APP_TIMER_DEF(m_nrf_timer);
+APP_TIMER_DEF(m_logging_timer);
 
 BLE_FUS_DEF(m_fus, NRF_SDH_BLE_TOTAL_LINK_COUNT);								   /**< BLE FUS service instance. */
 NRF_BLE_GATT_DEF(m_gatt);														   /**< GATT module instance. */
@@ -480,9 +491,7 @@ static void fus_data_handler(ble_fus_evt_t * p_evt) {
 		for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++) {
 			//NRF_LOG_INFO("rx_data[%d] = %c", i, p_evt->params.rx_data.p_data[i]);
 			//NRF_LOG_FLUSH();
-			//CRITICAL_REGION_ENTER();
 			command_interface_process_byte(p_evt->params.rx_data.p_data[i]);
-			//CRITICAL_REGION_EXIT();
 		}
 	}
 
@@ -786,6 +795,45 @@ static void process_packet_ble(unsigned char *data, unsigned int len) {
 }
 
 static void process_packet_vesc(unsigned char *data, unsigned int len) {
+	if (data[0] == COMM_GET_VALUES){
+		int32_t index = 1;
+		esc_telemetry.temp_mos = buffer_get_float16(data,10.0,&index);
+		esc_telemetry.temp_motor = buffer_get_float16(data,10.0,&index);
+		esc_telemetry.current_motor = buffer_get_float32(data,100.0,&index);
+		esc_telemetry.current_in = buffer_get_float32(data,10.0,&index);
+		esc_telemetry.foc_id = buffer_get_float32(data,100.0,&index);
+		esc_telemetry.foc_iq = buffer_get_float32(data,100.0,&index);
+		esc_telemetry.duty_now = buffer_get_float16(data,1000.0,&index);
+		esc_telemetry.rpm = buffer_get_float32(data,1.0,&index);
+		esc_telemetry.v_in = buffer_get_float16(data,10.0,&index);
+		esc_telemetry.amp_hours = buffer_get_float32(data,10000.0,&index);
+		esc_telemetry.amp_hours_charged = buffer_get_float32(data,10000.0,&index);
+		esc_telemetry.watt_hours = buffer_get_float32(data,10000.0,&index);
+		esc_telemetry.watt_hours_charged = buffer_get_float32(data,10000.0,&index);
+		esc_telemetry.tachometer = buffer_get_int32(data,&index);
+		esc_telemetry.tachometer_abs = buffer_get_int32(data,&index);
+		esc_telemetry.fault_code = data[index++];
+		esc_telemetry.position = buffer_get_float32(data,10.0,&index);
+		esc_telemetry.vesc_id = data[index++];
+		esc_telemetry.temp_mos_1 = buffer_get_float16(data,10.0,&index);
+		esc_telemetry.temp_mos_2 = buffer_get_float16(data,10.0,&index);
+		esc_telemetry.temp_mos_3 = buffer_get_float16(data,10.0,&index);
+		esc_telemetry.vd = buffer_get_float32(data,100.0,&index);
+		esc_telemetry.vq = buffer_get_float32(data,100.0,&index);
+		NRF_LOG_INFO("Parsed values packet");
+		NRF_LOG_FLUSH();
+
+		if (log_file_active)
+		{
+			//FileManager.writeToLogFile("${dtNow.toIso8601String().substring(0,21)},values,${telemetryPacket.v_in},${telemetryPacket.temp_motor},${telemetryPacket.temp_mos},${telemetryPacket.duty_now},${telemetryPacket.current_motor},${telemetryPacket.current_in},${telemetryPacket.rpm},${telemetryPacket.tachometer_abs},${telemetryPacket.vesc_id}\n");
+            //2020-05-19T13:46:28.8, values, 12.9, -99.9, 29.0, 0.0, 0.0, 0.0, 0.0, 11884, 102
+			char values_buffer[ 256 ] = {0};
+			sprintf( values_buffer, "%s,values,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%d,%d\n", datetimestring, esc_telemetry.v_in, esc_telemetry.temp_motor, esc_telemetry.temp_mos, esc_telemetry.duty_now,esc_telemetry.current_motor,esc_telemetry.current_in, esc_telemetry.rpm, esc_telemetry.tachometer_abs,esc_telemetry.vesc_id);
+			NRF_LOG_INFO( "File Bytes Written: %d", lfs_file_write(&lfs, &file, values_buffer, strlen(values_buffer)) );
+			NRF_LOG_INFO("logline: %s",values_buffer);
+			NRF_LOG_FLUSH();
+		}
+	}
 	if (data[0] == COMM_EXT_NRF_ESB_SET_CH_ADDR) {
 		esb_timeslot_set_ch_addr(data[1], data[2], data[3], data[4]);
 	} else if (data[0] == COMM_EXT_NRF_ESB_SEND_DATA) {
@@ -865,8 +913,23 @@ static void nrf_timer_handler(void *p_context) {
 		packet_send_packet(buffer, 1, PACKET_VESC);
 		CRITICAL_REGION_EXIT();
 	}
+}
 
-	cdc_printf("Test\r\n");
+static void logging_timer_handler(void *p_context) {
+	(void)p_context;
+
+	//TODO: request telemetry n log n stuff
+
+	currentTime++;
+	tmTime = localtime( &currentTime );
+
+	strftime ( datetimestring, 64, "%Y-%m-%d %H:%M:%S", tmTime );
+
+	//NRF_LOG_INFO("This would be a nice time to perform logging %s", datetimestring);
+	//NRF_LOG_FLUSH();
+
+	static unsigned char telemetryPacket[] = {0x02, 0x01, 0x04, 0x40, 0x84, 0x03};
+	uart_send_buffer(telemetryPacket, 6);
 }
 
 #ifdef HAS_DISPLAY
@@ -968,6 +1031,31 @@ void qspiInit()
 	NRF_LOG_FLUSH();
 }
 
+int log_file_stop()
+{
+	return lfs_file_close(&lfs, &file);
+}
+
+void log_file_start()
+{
+	if (log_file_active)
+	{
+		log_file_stop();
+		log_file_active = false;
+	}
+	char filename[64];
+	strftime( filename, 64, "/FreeSK8Logs/%Y-%m-%dT%H:%M:%S", tmTime );
+
+	NRF_LOG_INFO("Creating log file: %s",filename);
+	NRF_LOG_FLUSH();
+	if ( lfs_file_open(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT) >= 0)
+	{
+		NRF_LOG_INFO("log_file_active");
+		NRF_LOG_FLUSH();
+		log_file_active = true;
+	}
+}
+
 void littlefsInit()
 {
 	NRF_LOG_INFO("LittleFS initializing");
@@ -1040,12 +1128,30 @@ void littlefsInit()
 	NRF_LOG_INFO("Contents of /FreeSK8Logs");
 
 	struct lfs_info entryinfo;
-	while(lfs_dir_read(&lfs,&directory,&entryinfo)){
+	while(lfs_dir_read(&lfs,&directory,&entryinfo))
+	{
 		NRF_LOG_INFO("%s %d bytes %s", entryinfo.type == LFS_TYPE_REG ? "FILE" : "DIR ", entryinfo.size, entryinfo.name);
 		NRF_LOG_FLUSH();
+		// TODO: Cleaning 0 bytes files from system during debugging
+		if( entryinfo.type == LFS_TYPE_REG && entryinfo.size == 0 )
+		{
+			char filepath[64] = "/FreeSK8Logs/";
+			sprintf( filepath + strlen( filepath ), entryinfo.name );
+			int remove_response = lfs_remove( &lfs, filepath );
+            if (remove_response >= 0)
+            {
+                NRF_LOG_INFO("rm,OK,%s", filepath);
+            } 
+            else 
+            {
+                NRF_LOG_INFO("rm,FAIL,%s,%d", filepath, remove_response);
+            }
+			NRF_LOG_FLUSH();
+		}
 	}
 
-//lfs_dir_close(&lfs, &directory);
+	lfs_dir_close(&lfs,&directory);
+	
 	NRF_LOG_INFO("Directory listing complete");
 	NRF_LOG_FLUSH();
 }
@@ -1196,6 +1302,9 @@ int main(void) {
 
 	app_timer_create(&m_nrf_timer, APP_TIMER_MODE_REPEATED, nrf_timer_handler);
 	app_timer_start(m_nrf_timer, APP_TIMER_TICKS(1000), NULL);
+
+	app_timer_create(&m_logging_timer, APP_TIMER_MODE_REPEATED, logging_timer_handler);
+	app_timer_start(m_logging_timer, APP_TIMER_TICKS(1000), NULL);
 
 	esb_timeslot_init(esb_timeslot_data_handler);
 	esb_timeslot_sd_start();
