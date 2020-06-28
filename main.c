@@ -1141,8 +1141,8 @@ void littlefsInit()
             if (remove_response >= 0)
             {
                 NRF_LOG_INFO("rm,OK,%s", filepath);
-            } 
-            else 
+            }
+            else
             {
                 NRF_LOG_INFO("rm,FAIL,%s,%d", filepath, remove_response);
             }
@@ -1151,7 +1151,7 @@ void littlefsInit()
 	}
 
 	lfs_dir_close(&lfs,&directory);
-	
+
 	NRF_LOG_INFO("Directory listing complete");
 	NRF_LOG_FLUSH();
 }
