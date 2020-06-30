@@ -142,7 +142,7 @@ int qspi_prog(const struct lfs_config *c, lfs_block_t block,
         lfs_off_t off, const void *buffer, lfs_size_t size)
 {
   uint32_t addr = c->block_size * block + off;
-  uint32_t err_code = nrf_drv_qspi_write((uint8_t*)&buffer[0], size, addr); //TODO: dereferencing 'void *' pointer
+  uint32_t err_code = nrf_drv_qspi_write((uint8_t*)buffer, size, addr);
   APP_ERROR_CHECK(err_code);
   return err_code;
 } 
@@ -168,7 +168,7 @@ static lfs_file_t file;
 // temporary time tracking intil RTC
 time_t currentTime;
 struct tm * tmTime;
-static char datetimestring[ 64 ] = { 0 };
+static volatile char datetimestring[ 64 ] = { 0 };
 static volatile bool log_file_active = false;
 
 // configuration of the filesystem is provided by this struct
@@ -820,8 +820,6 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 		esc_telemetry.temp_mos_3 = buffer_get_float16(data,10.0,&index);
 		esc_telemetry.vd = buffer_get_float32(data,100.0,&index);
 		esc_telemetry.vq = buffer_get_float32(data,100.0,&index);
-		NRF_LOG_INFO("Parsed values packet");
-		NRF_LOG_FLUSH();
 
 		if (log_file_active)
 		{
@@ -923,10 +921,15 @@ static void logging_timer_handler(void *p_context) {
 	currentTime++;
 	tmTime = localtime( &currentTime );
 
-	strftime ( datetimestring, 64, "%Y-%m-%d %H:%M:%S", tmTime );
+	char dt_string[64] = {0};
+	strftime(dt_string, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
+	for(int i=0; i<strlen(dt_string)+1; ++i)
+	{
+		datetimestring[i] = dt_string[i];
+	}
 
-	//NRF_LOG_INFO("This would be a nice time to perform logging %s", datetimestring);
-	//NRF_LOG_FLUSH();
+	NRF_LOG_INFO("This would be a nice time to perform logging %s", datetimestring);
+	NRF_LOG_FLUSH();
 
 	static unsigned char telemetryPacket[] = {0x02, 0x01, 0x04, 0x40, 0x84, 0x03};
 	uart_send_buffer(telemetryPacket, 6);
@@ -1033,6 +1036,7 @@ void qspiInit()
 
 int log_file_stop()
 {
+	log_file_active = false;
 	return lfs_file_close(&lfs, &file);
 }
 
@@ -1041,13 +1045,19 @@ void log_file_start()
 	if (log_file_active)
 	{
 		log_file_stop();
-		log_file_active = false;
 	}
+
 	char filename[64];
 	strftime( filename, 64, "/FreeSK8Logs/%Y-%m-%dT%H:%M:%S", tmTime );
 
 	NRF_LOG_INFO("Creating log file: %s",filename);
 	NRF_LOG_FLUSH();
+
+	//TODO: Experienced a lockup here. No remote connected. BLE connected. lfs_file_open hangs
+	lfs_unmount(&lfs);
+	lfs_mount(&lfs, &cfg);
+	//TODO: Testing a re-mount here like what worked in rm command
+
 	if ( lfs_file_open(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT) >= 0)
 	{
 		NRF_LOG_INFO("log_file_active");

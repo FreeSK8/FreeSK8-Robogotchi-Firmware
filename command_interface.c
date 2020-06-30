@@ -16,7 +16,7 @@ static lfs_dir_t directory;
 static int32_t bytes_sent = -1; //file.ctz.size;
 
 void (*m_ble_tx_logbuffer)(unsigned char *data, unsigned int len);
-lfs_t *m_lfs;
+static lfs_t *m_lfs;
 
 static int command_input_index = 0;
 static char command_input_buffer[ 128 ] = { 0 };
@@ -38,12 +38,14 @@ enum{
 
 extern time_t currentTime;
 extern struct tm * tmTime;
+extern struct lfs_config cfg;
 
 static volatile uint8_t transferMode = TRANSFER_MODE_IDLE;
 
 void command_interface_process_byte(char incoming)
 {
     command_input_buffer[ command_input_index++ ] = incoming;
+    command_input_buffer[ command_input_index ] = 0x00;
     
     if(command_input_index >= sizeof(command_input_buffer))
     {
@@ -77,7 +79,7 @@ void command_interface_process_byte(char incoming)
             int syear, smonth, sday, shour, sminute, ssecond;
             sscanf( timepointer, "%d:%d:%dT%d:%d:%d", &syear, &smonth, &sday, &shour, &sminute, &ssecond );
 
-            NRF_LOG_INFO("command_interface: settime command received");
+            NRF_LOG_INFO("command_interface: settime command received: %s", command_input_buffer + 8);
             NRF_LOG_FLUSH();
 
             tmTime->tm_year = syear - 1900;
@@ -151,17 +153,21 @@ void command_interface_process_byte(char incoming)
         {
             NRF_LOG_INFO("command_interface: rm (remove) command received");
 
-            char filename[20] = {0}; //TODO: Max length is expected to be 19 but undetermined atm
+            char filename[32] = {0}; //TODO: Max length is expected to be 19 but undetermined atm
             strcpy(filename, &command_input_buffer[3]);
             filename[strlen(filename)-1] = 0x0; //TODO: remove once commands are null terminated
 
             char filepath[64] = "/FreeSK8Logs/";
-            strcpy(&filepath[13], filename);
-
-            NRF_LOG_INFO("filename %s", filename);
+            strcat(filepath, filename);
             NRF_LOG_INFO("filepath %s", filepath);
             NRF_LOG_FLUSH();
+
+            lfs_unmount( m_lfs );
+            int err = lfs_mount(m_lfs, &cfg);
+
             int remove_response = lfs_remove(m_lfs,filepath);
+            NRF_LOG_INFO("lfs_remove():remove_response: %d", remove_response);
+            NRF_LOG_FLUSH();
             if (remove_response >= 0)
             {
                 sprintf((char *)command_response_buffer, "rm,OK,%s", filename);
@@ -231,7 +237,16 @@ void command_interface_continue_transfer()
         {
             NRF_LOG_INFO("command_interface_continue_transfer(TRANSFER_MODE_CAT)");
             NRF_LOG_FLUSH();
-            if(bytes_sent < file.ctz.size)
+
+            if(bytes_sent >= file.ctz.size)
+            {
+                transferMode = TRANSFER_MODE_IDLE;
+                m_ble_tx_logbuffer((unsigned char *)"cat,complete", strlen("cat,complete"));
+
+                NRF_LOG_INFO("finished cat");
+                NRF_LOG_FLUSH();
+            }
+            else if(bytes_sent < file.ctz.size)
             {
                 int32_t read_response = lfs_file_read(m_lfs, &file, &command_response_buffer, sizeof(command_response_buffer));
                 NRF_LOG_INFO("read_response = %d", read_response);
@@ -245,14 +260,6 @@ void command_interface_continue_transfer()
                 }
             }
 
-            if(bytes_sent >= file.ctz.size)
-            {
-                transferMode = TRANSFER_MODE_IDLE;
-                m_ble_tx_logbuffer((unsigned char *)"cat,complete", strlen("cat,complete"));
-
-                NRF_LOG_INFO("finished cat");
-                NRF_LOG_FLUSH();
-            }
         }
         break;
     }
