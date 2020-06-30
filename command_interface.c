@@ -96,7 +96,7 @@ void command_interface_process_byte(char incoming)
             // open the log directory
             lfs_dir_open(m_lfs, &directory, "/FreeSK8Logs");
 
-            sprintf((char *)command_response_buffer, "ls,/FreeSK8Logs\n");
+            sprintf((char *)command_response_buffer, "ls,/FreeSK8Logs");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
           
             NRF_LOG_INFO("command_interface: ls (list files) command received: %s", command_response_buffer);
@@ -126,7 +126,7 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_INFO("File Count: %d, Total Size: %d bytes", file_count, file_bytes_total);
             NRF_LOG_FLUSH();
             // returning fc,filecount,totalsize
-            sprintf((char *)command_response_buffer, "fc,%d,%ld\n", file_count, file_bytes_total);
+            sprintf((char *)command_response_buffer, "fc,%d,%ld", file_count, file_bytes_total);
             // send response over BLE
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
@@ -140,7 +140,7 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_FLUSH();
             if(lfs_file_open(m_lfs, &file, filename, LFS_O_RDONLY) >= 0)
             {
-                sprintf((char *)command_response_buffer, "cat,%s\n", filename);
+                sprintf((char *)command_response_buffer, "cat,%s", filename);
                 m_ble_tx_logbuffer(command_response_buffer, (size_t)strlen((const char *)command_response_buffer));
 
                 NRF_LOG_INFO("Sent header");
@@ -206,7 +206,7 @@ void command_interface_continue_transfer()
                     case LFS_TYPE_REG:
                     {
                         // returning filename,filesize
-                        sprintf((char *)command_response_buffer, "ls,FILE,%s,%ld\n", entryinfo.name,  entryinfo.size);
+                        sprintf((char *)command_response_buffer, "ls,FILE,%s,%ld", entryinfo.name,  entryinfo.size);
                         //NRF_LOG_INFO((const char *)command_response_buffer); //TODO: This looks like dookie but sends correct
                         //NRF_LOG_FLUSH();
                         // send response over BLE
@@ -216,7 +216,7 @@ void command_interface_continue_transfer()
                     case LFS_TYPE_DIR:
                     {
                         // returning filename,filesize
-                        sprintf((char *)command_response_buffer, "ls,DIR,%s,%ld\n", entryinfo.name,  entryinfo.size);
+                        sprintf((char *)command_response_buffer, "ls,DIR,%s,%ld", entryinfo.name,  entryinfo.size);
                         //NRF_LOG_INFO((const char *)command_response_buffer); //TODO: This looks like dookie but sends correct
                         //NRF_LOG_FLUSH();
                         // send response over BLE
