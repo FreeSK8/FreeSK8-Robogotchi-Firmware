@@ -204,7 +204,7 @@ const struct lfs_config cfg = {
 
 #ifdef NRF52840_XXAA
 #if MODULE_BUILTIN
-#define DEVICE_NAME					 "VESC 52840 BUILTIN"
+#define DEVICE_NAME					 "FreeSK8 Receiver"
 #elif defined(MODULE_FREESK8)
 #define DEVICE_NAME   					"FreeSK8 Receiver"
 #else
@@ -616,14 +616,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
 		break;
 	case BLE_GATTS_EVT_WRITE:
 	case BLE_GATTS_EVT_HVN_TX_COMPLETE:
-		//TODO: determine which characteristic this event is for
-		//if(p_ble_evt->evt.gatts_evt.params.write.handle == m_fus.rxlog_handles.value_handle || 
-		//  p_ble_evt->evt.gatts_evt.params.write.handle == m_fus.rxlog_handles.cccd_handle ||
-		//  p_ble_evt->evt.gatts_evt.params.write.handle == m_fus.rxlog_handles.sccd_handle)
-		//^^None of the above after the first chunk.
-		{
-			command_interface_continue_transfer();
-		}
+
 	break;
 	default:
 		NRF_LOG_INFO("p_ble_evt->header.evt_id %ld", p_ble_evt->header.evt_id);
@@ -1036,8 +1029,12 @@ void qspiInit()
 
 int log_file_stop()
 {
-	log_file_active = false;
-	return lfs_file_close(&lfs, &file);
+	if (log_file_active)
+	{
+		log_file_active = false;
+		return lfs_file_close(&lfs, &file);
+	}
+	return -1;
 }
 
 void log_file_start()
