@@ -78,7 +78,7 @@
 static volatile TELEMETRY_DATA esc_telemetry;
 
 //Display
-//#define HAS_DISPLAY 1
+#define HAS_DISPLAY 1
 #ifdef HAS_DISPLAY
 #include "nrf_drv_twi.h"
 const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
@@ -95,36 +95,17 @@ void pwm_ready_callback(uint32_t pwm_id)	// PWM callback function
 {
 	ready_flag = true;
 }
+void beep_speaker(int duration_ms, int duty_haha_duty)
+{
+	while (app_pwm_channel_duty_set(&PWM1, 0, duty_haha_duty) == NRF_ERROR_BUSY){}
+	nrf_delay_ms(duration_ms);
+	while (app_pwm_channel_duty_set(&PWM1, 0, 0) == NRF_ERROR_BUSY){}
+}
 
 // Button input
-#include "nrf_drv_gpiote.h"
+#include "nrf_gpio.h"
 #define PIN_BUTTON 13
-void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
-{
-    nrf_gpio_pin_set(11);
-	nrf_delay_ms(500);
-	nrf_gpio_pin_clear(11);
-}
-/**
- * @brief Function for configuring: PIN_BUTTON pin for input
- * and configures GPIOTE to give an interrupt on pin change.
- */
-static void gpio_init(void)
-{
-    ret_code_t err_code;
-
-    err_code = nrf_drv_gpiote_init();
-    APP_ERROR_CHECK(err_code);
-
-    nrf_drv_gpiote_in_config_t in_config = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
-    in_config.pull = NRF_GPIO_PIN_PULLUP;
-
-    err_code = nrf_drv_gpiote_in_init(PIN_BUTTON, &in_config, in_pin_handler);
-    APP_ERROR_CHECK(err_code);
-
-    nrf_drv_gpiote_in_event_enable(PIN_BUTTON, true);
-}
-//
+#define isButtonPressed !nrf_gpio_pin_read(PIN_BUTTON)
 
 //LITTLEFS
 uint32_t boot_count = 0;
@@ -192,11 +173,11 @@ const struct lfs_config cfg = {
 ///////////////////
 
 #ifndef MODULE_BUILTIN
-#define MODULE_BUILTIN					1
+#define MODULE_BUILTIN					0
 #endif
 
 #ifndef MODULE_FREESK8
-#define MODULE_FREESK8					0
+#define MODULE_FREESK8					1
 #endif
 
 
@@ -1199,9 +1180,225 @@ void pwm_change_frequency(uint16_t freq)
 	app_pwm_enable(&PWM1);
 }
 
+// Dont ask
+// frame counter
+unsigned int frame = 0;
+// scrore string buffer
+char text[16];
+
+// cactus_1 w:  16  h:  24
+const unsigned char cactus_1[] =
+{0x06, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0x0F, 0x60, 0x0F, 0x70,
+    0x4F, 0x70, 0xEF, 0x70, 0xEF, 0x70, 0xEF, 0x70, 0xEF, 0x70, 0xEF, 0x70, 0xEF, 0xF0, 0xEF, 0xE0,
+    0xFF, 0x00, 0x7F, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0x1F, 0x80};
+// cloud_1 w:  24  h:  7
+const unsigned char cloud_1[] =
+{   0x00, 0xF0, 0x00, 0x73, 0x0C, 0x00, 0x88, 0x03,
+    0x00, 0x81, 0x04, 0x80, 0x86, 0x00, 0x80, 0x79,
+    0x83, 0x00, 0x00, 0x7C, 0x00 };
+
+// w:  32  h:  18
+const unsigned char dino_tumble[] =
+//{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7e, 0xf8, 0xf0, 0xe0, 0xe0, 0xf0, 0xf0, 0xf8, 0xf8, 0xf8, 0xf8, 0xf0, 0xf0, 0xf0, 0xe0, 0xe0, 0xc0, 0xc0, 0x80, 0xc0, 0xf0, 0xa8, 0xd8, 0xa8, 0xf8, 0xf8, 0xf8, 0xf8, 0xf8, 0xf0, 0x00, 0x00, 0x01, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x01, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x01 };
+{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0xc1, 0xe0, 0x07, 0xf8, 
+0xe7, 0xfc, 0x0a, 0xfc, 0xff, 0xff, 0x0d, 0xfc, 0xff, 0xff, 0xda, 0xfc, 0x7f, 0xff, 0xff, 0xfc, 
+0x3f, 0xff, 0xff, 0xfc, 0x1f, 0xff, 0xef, 0xf8};
+// top w:  24  h:  18
+const unsigned char dino_top[] =
+{ 0x00, 0x1F, 0xE0, 0x00, 0x3F, 0xF0, 0x00, 0x37,
+    0xF0, 0x00, 0x3F, 0xF0, 0x00, 0x3F, 0xF0, 0x00,
+    0x3F, 0xF0, 0x00, 0x3E, 0x00, 0x00, 0x3F, 0xC0,
+    0x00, 0x7C, 0x00, 0x80, 0xFC, 0x00, 0x81, 0xFF,
+    0x00, 0xC3, 0xFD, 0x00, 0xE7, 0xFC, 0x00, 0xFF,
+    0xFC, 0x00, 0xFF, 0xFC, 0x00, 0x7F, 0xF8, 0x00,
+    0x3F, 0xF8, 0x00, 0x1F, 0xF0, 0x00 };
+// leg_0 w:  16  h:  5
+const unsigned char dino_leg_0[] =
+{ 0x0F, 0xE0, 0x07, 0x60, 0x06, 0x20, 0x04, 0x20, 0x06, 0x30 };
+// leg_1 w:  16  h:  5
+const unsigned char dino_leg_1[] =
+{ 0x0F, 0xE0, 0x06, 0x60, 0x04, 0x20, 0x06, 0x20, 0x00, 0x30 };
+// leg_2 w:  20  h:  5
+const unsigned char dino_leg_2[] =
+{ 0x0F, 0xE0, 0x07, 0x60, 0x06, 0x20, 0x04, 0x30, 0x06, 0x00};
+// distance ran
+int d, delta;
+int cloud_1_y;
+int d_jump, d_jump_t;
+int d_run;
+int d_tumble_t;
+int ox;
+// Really, don't ask
+void play_game(){
+	d = 0;
+	delta = 0;
+	cloud_1_y = 2;
+	d_jump = 0;
+	d_jump_t = 0;
+	d_tumble_t = 0;
+	d_run = 0;
+	ox = 130;	
+
+	while(true)
+	{
+		if (!d_run && isButtonPressed) {
+			//TODO: why can't I do this?
+			//while(isButtonPressed)
+			//{
+			//	nrf_delay_ms(100);
+			//}
+			d_run = 1;
+		}
+
+		if (d_tumble_t && isButtonPressed) {
+			d = 0;
+			delta = 0;
+			cloud_1_y = 2;
+			d_jump = 0;
+			d_jump_t = 0;
+			d_tumble_t = 0;
+			d_run = 0;
+			ox = 130;
+			while(isButtonPressed)
+			{
+				nrf_delay_ms(100);
+			}
+			continue;
+		}
+
+		if (++frame>16000) frame = 0;
+
+		// increase distance whilst running
+		if (d_run && (++delta > 4)) {
+			delta = 0; ++d; 
+		}
+
+		// obstacles
+		if (d_run) {
+			ox -= (frame%2)*(d/100) + 2;
+			if (ox < -15) ox += 140 + rand() % 60;
+		}
+
+		// jump!
+		if (!d_jump_t && isButtonPressed) {
+			d_jump_t = 1;
+			d_jump=5;
+
+			beep_speaker(40, 50);
+
+		} else if (d_jump_t) {
+			++d_jump_t;
+
+			if (d_jump_t<6) {
+				d_jump +=6;
+			} else if (d_jump_t<9) {
+				d_jump +=2;
+			} else if (d_jump_t<13) {
+				d_jump +=1;
+			} else if (d_jump_t == 16 || d_jump_t == 18) {
+				d_jump +=1;
+			} else if (d_jump_t == 20 || d_jump_t == 22) {
+				d_jump -=1;
+			} else if (d_jump_t>38) {
+				d_jump = 0;
+				d_jump_t = 0;
+			} else if (d_jump_t>32) {
+				d_jump -=6;
+			} else if (d_jump_t>29) {
+				d_jump -=2;
+			} else if (d_jump_t>25) {
+				d_jump -=1;
+			}
+		}
+
+		// hit detect
+		if (!d_tumble_t && ox > -10 && ox <8 && d_jump_t < 5) {
+			d_tumble_t = 1;    
+		}
+
+		if (d_tumble_t) {
+			if (d_tumble_t == 1) {
+				beep_speaker(40,10);
+			} else if (d_tumble_t == 6) {
+				beep_speaker(200,90);
+			}
+
+			++d_tumble_t;
+			if (d_jump > -4) {
+				d_jump -= 1;
+				ox -= 1;
+			} else {
+				d_run = 0;
+			}
+		}
+
+		SSD1306_clearDisplay();
+
+		// hud
+		Adafruit_GFX_setCursor(100, 0);
+		sprintf(text,"%d",d);
+		
+		int cindex = 0;
+		while( text[ cindex ] != 0 )
+		{
+			Adafruit_GFX_write( text[ cindex++ ] );
+		}
+
+		// parallax clouds
+		Adafruit_GFX_drawBitmap(128 -(d%128),cloud_1_y,cloud_1,24,7,WHITE);
+
+		if (d%128 == 0) {
+			cloud_1_y = rand() % 10;
+		}
+
+		// terrain
+		if (d_jump > 4) {
+			Adafruit_GFX_drawLine(0,30,128,30,WHITE);
+		} else {
+			Adafruit_GFX_drawLine(0,30,3,30,WHITE);
+			Adafruit_GFX_drawLine(12,30,127,30,WHITE); 
+		}
+
+		// obstacles
+		Adafruit_GFX_drawBitmap(ox,8,cactus_1,16,24,WHITE);
+
+
+		// dino
+		int dy = 9-d_jump;
+
+		// tumbles!
+		if (d_tumble_t) {
+			Adafruit_GFX_drawBitmap(0,dy,dino_tumble,32,18,WHITE);
+
+		// runs!
+		} else {
+			Adafruit_GFX_drawBitmap(0,dy,dino_top,24,18,WHITE);
+
+			// Run, Dino, Run!
+			if (d_run && !d_jump) {
+				if ((frame%8)/4) {
+					Adafruit_GFX_drawBitmap(0,dy+18,dino_leg_1,16,5,WHITE);
+				} else {
+					Adafruit_GFX_drawBitmap(0,dy+18,dino_leg_2,16,5,WHITE);
+				}
+			} else {
+				Adafruit_GFX_drawBitmap(0,dy+18,dino_leg_0,16,5,WHITE);
+			}
+		}
+
+		SSD1306_display();
+		nrf_delay_ms(16);
+	}
+}
+//You didn't listen when I said don't ask, did you?
+
 int main(void) {
 
+	nrf_gpio_cfg_input(PIN_BUTTON,NRF_GPIO_PIN_PULLUP);
 	nrf_gpio_cfg_output(LED_PIN);
+	//Flash LED to show sign of life //TODO: remove this
 	nrf_gpio_pin_set(LED_PIN);
 	nrf_delay_ms(1000);
 	nrf_gpio_pin_clear(LED_PIN);
@@ -1242,12 +1439,8 @@ int main(void) {
 		Adafruit_GFX_write(freetitle[ cindex++ ]);
 	}
 	SSD1306_display();
-#endif
-	
-///////////////////////////
 
-	//Button Init
-	gpio_init();
+#endif
 
 ////////////////////////////
 
@@ -1289,6 +1482,13 @@ int main(void) {
 #endif
 			nrf_delay_ms(50);
 		}
+	}
+
+////////////////////////////
+
+	if(isButtonPressed)
+	{
+		play_game();
 	}
 
 ////////////////////////////

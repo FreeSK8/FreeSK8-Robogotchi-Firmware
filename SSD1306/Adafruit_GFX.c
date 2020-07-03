@@ -348,8 +348,9 @@ void Adafruit_GFX_drawBitmap(int16_t x, int16_t y,
 
   for(j=0; j<h; j++) {
     for(i=0; i<w; i++ ) {
-      if(pgm_read_byte(bitmap + j * byteWidth + i / 8) & (128 >> (i & 7))) {
-	Adafruit_GFX_drawPixel(x+i, y+j, color);
+      //if(pgm_read_byte(bitmap + j * byteWidth + i / 8) & (128 >> (i & 7))) {
+      if( bitmap[j * byteWidth + i / 8] & (128 >> (i & 7))) {
+	      Adafruit_GFX_drawPixel(x+i, y+j, color);
       }
     }
   }
