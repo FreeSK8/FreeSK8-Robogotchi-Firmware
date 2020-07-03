@@ -10,6 +10,7 @@
 
 extern int log_file_stop();
 extern void log_file_start();
+extern void update_status_packet(char * buffer);
 
 
 static lfs_file_t file;
@@ -73,6 +74,9 @@ void command_interface_process_byte(char incoming)
                 log_file_stop();
             }
 
+            // Sending status packet to update the client of command result
+            update_status_packet((char *)command_response_buffer);
+            m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "settime ", 8) == 0)
         {
@@ -174,8 +178,14 @@ void command_interface_process_byte(char incoming)
 
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
+        else if(strncmp(command_input_buffer, "status", 6) == 0)
+        {
+            NRF_LOG_INFO("command_interface: status command received");
+            update_status_packet((char *)command_response_buffer);
+            m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
+        }
 
-        memset(command_input_buffer, 0, 128);
+        memset(command_input_buffer, 0, sizeof(command_input_buffer));
         command_input_index = 0;
     }
 }

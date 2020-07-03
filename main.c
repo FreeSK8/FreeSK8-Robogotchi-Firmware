@@ -1032,6 +1032,12 @@ int log_file_stop()
 	if (log_file_active)
 	{
 		log_file_active = false;
+		//TODO: Experienced a lockup here. No remote connected. BLE connected. lfs_file_close hangs after performing cat
+		lfs_unmount(&lfs);
+		lfs_mount(&lfs, &cfg);
+		//TODO: Testing a re-mount here
+		//NOTE: The crash is no longer repeatable with re-mounting and the file saves successfully even though we close
+		// the file handle after messing with the state of the lfs object/filesystem. What gives?
 		return lfs_file_close(&lfs, &file);
 	}
 	return -1;
@@ -1061,6 +1067,12 @@ void log_file_start()
 		NRF_LOG_FLUSH();
 		log_file_active = true;
 	}
+}
+
+void update_status_packet(char * buffer)
+{
+	//TODO: Possible status variables: isLogging, bytesSaved, fileStartTime, fileCount
+	sprintf(buffer, "status,OK,%d,", log_file_active);
 }
 
 void littlefsInit()
