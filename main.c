@@ -78,7 +78,7 @@
 static volatile TELEMETRY_DATA esc_telemetry;
 
 //Display
-//#define HAS_DISPLAY 0
+#define HAS_DISPLAY 0
 #if HAS_DISPLAY
 #include "nrf_drv_twi.h"
 const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
@@ -840,7 +840,6 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	}
 	// We are not logging, see if we should start
 	else if (fabs(esc_telemetry.duty_now) > 0.01) { //TODO: Specify appropriate minimum duty cycle to initiate logging
-		lastTimeBoardMoved = currentTime;
 		log_file_start();
 		NRF_LOG_INFO("Logging started automatically");
 		NRF_LOG_FLUSH();
@@ -1067,6 +1066,8 @@ int log_file_stop()
 
 void log_file_start()
 {
+	lastTimeBoardMoved = currentTime;
+
 	if (log_file_active)
 	{
 		log_file_stop();
@@ -1178,18 +1179,6 @@ void littlefsInit()
 void pwm_init(void)  
 {
 	app_pwm_config_t pwm1_cfg = APP_PWM_DEFAULT_CONFIG_1CH(240L, PIN_PIEZO);
-	pwm1_cfg.pin_polarity[0] = APP_PWM_POLARITY_ACTIVE_HIGH;
-
-	APP_ERROR_CHECK(app_pwm_init(&PWM1,&pwm1_cfg,pwm_ready_callback));
-
-	app_pwm_enable(&PWM1);
-}
-
-void pwm_change_frequency(uint16_t freq)
-{
-	app_pwm_uninit(&PWM1);  
-
-	app_pwm_config_t pwm1_cfg = APP_PWM_DEFAULT_CONFIG_1CH(freq, PIN_PIEZO);
 	pwm1_cfg.pin_polarity[0] = APP_PWM_POLARITY_ACTIVE_HIGH;
 
 	APP_ERROR_CHECK(app_pwm_init(&PWM1,&pwm1_cfg,pwm_ready_callback));
@@ -1466,42 +1455,27 @@ int main(void) {
 	// Test piezo
 	pwm_init();
 
-	//while (false)
+	//TODO: RREMOVE: Sweep 50 to 100% duty cycle
+	for (uint16_t i = 50; i < 100; ++i)
 	{
-		for (uint16_t i = 50; i < 100; ++i)
-		{
-			ready_flag = false;
-			/* Set the duty cycle - keep trying until PWM is ready... */
-			while (app_pwm_channel_duty_set(&PWM1, 0, i) == NRF_ERROR_BUSY){}
+		ready_flag = false;
+		/* Set the duty cycle - keep trying until PWM is ready... */
+		while (app_pwm_channel_duty_set(&PWM1, 0, i) == NRF_ERROR_BUSY){}
 #if HAS_DISPLAY
-			Adafruit_GFX_setCursor(0,8);
-			char output[8] = {0};
-			int cindex = 0;
-			sprintf(output,"%d%% ", i);
-			while( output[cindex] != 0 ) { Adafruit_GFX_write(output[ cindex++ ]); }
-			SSD1306_display();
+		Adafruit_GFX_setCursor(0,8);
+		char output[8] = {0};
+		int cindex = 0;
+		sprintf(output,"%d%% ", i);
+		while( output[cindex] != 0 ) { Adafruit_GFX_write(output[ cindex++ ]); }
+		SSD1306_display();
 #endif
-			/* ... or wait for callback. */
-			//while (!ready_flag);
-			//APP_ERROR_CHECK(app_pwm_channel_duty_set(&PWM1, 0, i));
-			nrf_delay_ms(25);
-		}
-		while (app_pwm_channel_duty_set(&PWM1, 0, 0) == NRF_ERROR_BUSY){}
+		/* ... or wait for callback. */
+		//while (!ready_flag);
+		//APP_ERROR_CHECK(app_pwm_channel_duty_set(&PWM1, 0, i));
+		nrf_delay_ms(25);
 	}
-	while(false){
-		for(int i =100; i< 800; ++i) {
-			pwm_change_frequency(i);
-#if HAS_DISPLAY
-			Adafruit_GFX_setCursor(0,8);
-			char output[8] = {0};
-			int cindex = 0;
-			sprintf(output,"%dus", i);
-			while( output[cindex] != 0 ) { Adafruit_GFX_write(output[ cindex++ ]); }
-			SSD1306_display();
-#endif
-			nrf_delay_ms(50);
-		}
-	}
+	while (app_pwm_channel_duty_set(&PWM1, 0, 0) == NRF_ERROR_BUSY){}
+
 
 ////////////////////////////
 #if HAS_DISPLAY
