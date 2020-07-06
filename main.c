@@ -78,8 +78,8 @@
 static volatile TELEMETRY_DATA esc_telemetry;
 
 //Display
-#define HAS_DISPLAY 1
-#ifdef HAS_DISPLAY
+//#define HAS_DISPLAY 0
+#if HAS_DISPLAY
 #include "nrf_drv_twi.h"
 const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
 #include "SSD1306.h"
@@ -108,6 +108,10 @@ void beep_speaker(int duration_ms, int duty_haha_duty)
 #define isButtonPressed !nrf_gpio_pin_read(PIN_BUTTON)
 
 //LITTLEFS
+time_t lastTimeBoardMoved = 0;
+int log_file_stop();
+void log_file_start();
+
 uint32_t boot_count = 0;
 #include "lfs.h"
 
@@ -173,11 +177,11 @@ const struct lfs_config cfg = {
 ///////////////////
 
 #ifndef MODULE_BUILTIN
-#define MODULE_BUILTIN					0
+#define MODULE_BUILTIN					1
 #endif
 
 #ifndef MODULE_FREESK8
-#define MODULE_FREESK8					1
+#define MODULE_FREESK8					0
 #endif
 
 
@@ -795,17 +799,54 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 		esc_telemetry.vd = buffer_get_float32(data,100.0,&index);
 		esc_telemetry.vq = buffer_get_float32(data,100.0,&index);
 
+		//TODO: Rate limit writing telemetry since real time data also requests this packet
+		// 		Unless there is a fault!
 		if (log_file_active)
 		{
 			//FileManager.writeToLogFile("${dtNow.toIso8601String().substring(0,21)},values,${telemetryPacket.v_in},${telemetryPacket.temp_motor},${telemetryPacket.temp_mos},${telemetryPacket.duty_now},${telemetryPacket.current_motor},${telemetryPacket.current_in},${telemetryPacket.rpm},${telemetryPacket.tachometer_abs},${telemetryPacket.vesc_id}\n");
             //2020-05-19T13:46:28.8, values, 12.9, -99.9, 29.0, 0.0, 0.0, 0.0, 0.0, 11884, 102
 			char values_buffer[ 256 ] = {0};
+			// Write fault codes to their own line
+			if (esc_telemetry.fault_code != 0) {
+				sprintf( values_buffer, "%s,fault,%s,%d,%d\n", datetimestring,  mc_fault_to_string(esc_telemetry.fault_code), esc_telemetry.fault_code, esc_telemetry.vesc_id);
+				NRF_LOG_INFO( "File Bytes Written: %d", lfs_file_write(&lfs, &file, values_buffer, strlen(values_buffer)) );
+				NRF_LOG_INFO("logline: %s",values_buffer);
+			}
+			// Write minimum telemetry data set
 			sprintf( values_buffer, "%s,values,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%d,%d\n", datetimestring, esc_telemetry.v_in, esc_telemetry.temp_motor, esc_telemetry.temp_mos, esc_telemetry.duty_now,esc_telemetry.current_motor,esc_telemetry.current_in, esc_telemetry.rpm, esc_telemetry.tachometer_abs,esc_telemetry.vesc_id);
 			NRF_LOG_INFO( "File Bytes Written: %d", lfs_file_write(&lfs, &file, values_buffer, strlen(values_buffer)) );
 			NRF_LOG_INFO("logline: %s",values_buffer);
 			NRF_LOG_FLUSH();
 		}
 	}
+
+	// Watch telemetry data to trigger logging
+	// If we are logging now see if we should stop
+	if (log_file_active) {
+		if(esc_telemetry.v_in < 8.0) { //TODO: Specify appropriate low voltage detection limit
+			log_file_stop();
+			beep_speaker(50,50);
+			NRF_LOG_INFO("Logging stopped due to power drop");
+			NRF_LOG_FLUSH();
+		} else if (currentTime - lastTimeBoardMoved > 60) { //TODO: Specify appropriate duration to auto stop logging
+			log_file_stop();
+			NRF_LOG_INFO("Logging stopped due to inactivity");
+			NRF_LOG_FLUSH();
+			beep_speaker(50,50);
+		} else if (fabs(esc_telemetry.duty_now) > 0.01) { //TODO: Specify appropriate minimum duty cycle to initiate logging
+			// We are moving while logging. Keep it up!
+			lastTimeBoardMoved = currentTime;
+		}
+	}
+	// We are not logging, see if we should start
+	else if (fabs(esc_telemetry.duty_now) > 0.01) { //TODO: Specify appropriate minimum duty cycle to initiate logging
+		lastTimeBoardMoved = currentTime;
+		log_file_start();
+		NRF_LOG_INFO("Logging started automatically");
+		NRF_LOG_FLUSH();
+	}
+
+	// Finish packet processing
 	if (data[0] == COMM_EXT_NRF_ESB_SET_CH_ADDR) {
 		esb_timeslot_set_ch_addr(data[1], data[2], data[3], data[4]);
 	} else if (data[0] == COMM_EXT_NRF_ESB_SEND_DATA) {
@@ -909,7 +950,7 @@ static void logging_timer_handler(void *p_context) {
 	uart_send_buffer(telemetryPacket, 6);
 }
 
-#ifdef HAS_DISPLAY
+#if HAS_DISPLAY
 void i2c_oled_comm_handle(uint8_t hdl_address, uint8_t *hdl_buffer, size_t hdl_buffer_size)
 {
 	nrf_drv_twi_tx(&m_twi_master, hdl_address, hdl_buffer, hdl_buffer_size, false);
@@ -1100,30 +1141,6 @@ void littlefsInit()
 		lfs_dir_open(&lfs,&directory,"/FreeSK8Logs");
 	}
 
-/*
-	// create a few files for debugging purposes only - DO NOT USE
-	char filename[128];
-	static char * demolog = "2020-06-20T20:26:43.3,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
-			"2020-06-20T20:26:42.0,position,23.428,-95.68598,12,15.0,0.6,-1,,\n"\
-			"2020-06-20T20:26:43.8,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
-			"2020-06-20T20:26:44.4,values,41.4,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
-			"2020-06-20T20:26:45.0,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
-			"2020-06-20T20:26:44.0,position,23.4279,-95.68599,9,15.0,0.2,0,,\n"\
-			"2020-06-20T20:26:45.6,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
-			"2020-06-20T20:26:46.1,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n"\
-			"2020-06-20T20:26:45.0,position,23.4279,-95.68599,7,15.0,0.3,0,,\n"\
-			"2020-06-20T20:26:46.7,values,41.5,-99.9,24.2,0.0,0.0,0.0,0.0,27,54\n";
-
-	for( int i = 0; i < 8; ++i )
-	{
-		sprintf( filename, "/FreeSK8Logs/2020-06-20T20:26:4%d", i);
-		lfs_file_open(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT);
-		lfs_file_rewind(&lfs, &file);
-		lfs_file_write(&lfs, &file, demolog, strlen(demolog));
-		lfs_file_close(&lfs, &file);
-	}
-*/
-	
 	// list the contents of the log directory
 	NRF_LOG_INFO("Contents of /FreeSK8Logs");
 
@@ -1180,6 +1197,7 @@ void pwm_change_frequency(uint16_t freq)
 	app_pwm_enable(&PWM1);
 }
 
+#if HAS_DISPLAY
 // Dont ask
 // frame counter
 unsigned int frame = 0;
@@ -1393,6 +1411,7 @@ void play_game(){
 	}
 }
 //You didn't listen when I said don't ask, did you?
+#endif
 
 int main(void) {
 
@@ -1419,7 +1438,7 @@ int main(void) {
 
 ///////////////////Display test
 
-#ifdef HAS_DISPLAY
+#if HAS_DISPLAY
 	ret_code_t err_code = twi_master_init();
 	APP_ERROR_CHECK(err_code);
 
@@ -1454,7 +1473,7 @@ int main(void) {
 			ready_flag = false;
 			/* Set the duty cycle - keep trying until PWM is ready... */
 			while (app_pwm_channel_duty_set(&PWM1, 0, i) == NRF_ERROR_BUSY){}
-#ifdef HAS_DISPLAY
+#if HAS_DISPLAY
 			Adafruit_GFX_setCursor(0,8);
 			char output[8] = {0};
 			int cindex = 0;
@@ -1472,7 +1491,7 @@ int main(void) {
 	while(false){
 		for(int i =100; i< 800; ++i) {
 			pwm_change_frequency(i);
-#ifdef HAS_DISPLAY
+#if HAS_DISPLAY
 			Adafruit_GFX_setCursor(0,8);
 			char output[8] = {0};
 			int cindex = 0;
@@ -1485,12 +1504,12 @@ int main(void) {
 	}
 
 ////////////////////////////
-
+#if HAS_DISPLAY
 	if(isButtonPressed)
 	{
 		play_game();
 	}
-
+#endif
 ////////////////////////////
 
 	//QSPI Testing
