@@ -78,7 +78,7 @@
 static volatile TELEMETRY_DATA esc_telemetry;
 
 //Display
-#define HAS_DISPLAY 1
+#define HAS_DISPLAY 0
 #if HAS_DISPLAY
 #include "nrf_drv_twi.h"
 const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
@@ -177,11 +177,11 @@ const struct lfs_config cfg = {
 ///////////////////
 
 #ifndef MODULE_BUILTIN
-#define MODULE_BUILTIN					0
+#define MODULE_BUILTIN					1
 #endif
 
 #ifndef MODULE_FREESK8
-#define MODULE_FREESK8					1
+#define MODULE_FREESK8					0
 #endif
 
 
@@ -772,6 +772,16 @@ static void process_packet_ble(unsigned char *data, unsigned int len) {
 	CRITICAL_REGION_EXIT();
 }
 
+void update_status_packet(char * buffer);
+void send_status_packet()
+{
+	if (m_conn_handle != BLE_CONN_HANDLE_INVALID)
+	{
+		static unsigned char response_buffer[64];
+		update_status_packet((char *)response_buffer);
+		ble_send_logbuffer(response_buffer, strlen((const char *)response_buffer));
+	}
+}
 static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	if (data[0] == COMM_GET_VALUES){
 		int32_t index = 1;
@@ -828,11 +838,13 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			beep_speaker(50,50);
 			NRF_LOG_INFO("Logging stopped due to power drop");
 			NRF_LOG_FLUSH();
+			send_status_packet();
 		} else if (currentTime - lastTimeBoardMoved > 60) { //TODO: Specify appropriate duration to auto stop logging
 			log_file_stop();
 			NRF_LOG_INFO("Logging stopped due to inactivity");
 			NRF_LOG_FLUSH();
 			beep_speaker(50,50);
+			send_status_packet();
 		} else if (fabs(esc_telemetry.duty_now) > 0.01) { //TODO: Specify appropriate minimum duty cycle to initiate logging
 			// We are moving while logging. Keep it up!
 			lastTimeBoardMoved = currentTime;
@@ -843,6 +855,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 		log_file_start();
 		NRF_LOG_INFO("Logging started automatically");
 		NRF_LOG_FLUSH();
+		send_status_packet();
 	}
 
 	// Finish packet processing
