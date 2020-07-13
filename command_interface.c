@@ -184,6 +184,12 @@ void command_interface_process_byte(char incoming)
             update_status_packet((char *)command_response_buffer);
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
+        else if(strncmp(command_input_buffer, "dfumode", 7) == 0)
+        {
+            // Set flag for DFU mode and reset device
+            NRF_POWER->GPREGRET = 0xB1;
+            NVIC_SystemReset();
+        }
 
         memset(command_input_buffer, 0, sizeof(command_input_buffer));
         command_input_index = 0;
