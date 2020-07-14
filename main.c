@@ -78,7 +78,7 @@
 static volatile TELEMETRY_DATA esc_telemetry;
 
 //Display
-#define HAS_DISPLAY 0
+#define HAS_DISPLAY 1
 #if HAS_DISPLAY
 #include "nrf_drv_twi.h"
 const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
@@ -87,7 +87,7 @@ const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
 #endif
 
 // Piezo
-#define PIN_PIEZO 32
+#define PIN_PIEZO 10
 #include "app_pwm.h"
 APP_PWM_INSTANCE(PWM1,1);				   // Create the instance "PWM1" using TIMER1.
 static volatile bool ready_flag;			// A flag indicating PWM status.
@@ -104,7 +104,7 @@ void beep_speaker(int duration_ms, int duty_haha_duty)
 
 // Button input
 #include "nrf_gpio.h"
-#define PIN_BUTTON 13
+#define PIN_BUTTON 9
 #define isButtonPressed !nrf_gpio_pin_read(PIN_BUTTON)
 
 //LITTLEFS
@@ -177,11 +177,11 @@ const struct lfs_config cfg = {
 ///////////////////
 
 #ifndef MODULE_BUILTIN
-#define MODULE_BUILTIN					1
+#define MODULE_BUILTIN					0
 #endif
 
 #ifndef MODULE_FREESK8
-#define MODULE_FREESK8					0
+#define MODULE_FREESK8					1
 #endif
 
 
@@ -242,7 +242,7 @@ const struct lfs_config cfg = {
 #define UART_RX							36
 #define UART_TX							35
 #define UART_TX_DISABLED				19
-#define LED_PIN							11
+#define LED_PIN							13
 #else
 #define UART_RX							11
 #define UART_TX							8
