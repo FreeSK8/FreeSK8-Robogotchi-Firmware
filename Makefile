@@ -295,6 +295,8 @@ CFLAGS += -mfloat-abi=hard -mfpu=fpv4-sp-d16
 CFLAGS += -ffunction-sections -fdata-sections -fno-strict-aliasing
 CFLAGS += -fno-builtin -fshort-enums
 CFLAGS += -std=gnu99 -D_GNU_SOURCE
+# Set NFC pins to be used as GPIO
+CFLAGS += -DCONFIG_NFCT_PINS_AS_GPIOS
 
 # C++ flags common to all targets
 CXXFLAGS += $(OPT)
