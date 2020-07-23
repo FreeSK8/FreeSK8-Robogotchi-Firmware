@@ -8,6 +8,7 @@
 #include "nrf_log_ctrl.h"
 #include "nrf_ble_gatt.h"
 
+extern uint16_t lfs_file_count;
 extern int log_file_stop();
 extern void log_file_start();
 extern void update_status_packet(char * buffer);
@@ -169,6 +170,7 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_FLUSH();
             if (remove_response >= 0)
             {
+                --lfs_file_count;
                 sprintf((char *)command_response_buffer, "rm,OK,%s", filename);
             } 
             else 

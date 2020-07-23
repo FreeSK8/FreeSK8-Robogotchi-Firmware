@@ -356,6 +356,13 @@ void Adafruit_GFX_drawBitmap(int16_t x, int16_t y,
   }
 }
 
+void Adafruit_GFX_print(char * buffer) {
+  int index = 0;
+  while( buffer[index] != 0 )
+	{
+		Adafruit_GFX_write((uint8_t)buffer[index++]);
+	}
+}
 
 void Adafruit_GFX_write(uint8_t c) {
   if (c == '\n') {

@@ -76,12 +76,14 @@
 #include <time.h>
 
 static volatile TELEMETRY_DATA esc_telemetry;
+static volatile int esc_rx_cnt = 0;
 
 //Display
 #define HAS_DISPLAY 1
 #if HAS_DISPLAY
 #include "nrf_drv_twi.h"
 const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
+static char display_text_buffer[32] = {0};
 #include "SSD1306.h"
 #include "Adafruit_GFX.h"
 #endif
@@ -95,6 +97,7 @@ void pwm_ready_callback(uint32_t pwm_id)	// PWM callback function
 {
 	ready_flag = true;
 }
+//TODO: Let's make the pizeo tones non blocking
 void beep_speaker(int duration_ms, int duty_haha_duty)
 {
 	while (app_pwm_channel_duty_set(&PWM1, 0, duty_haha_duty) == NRF_ERROR_BUSY){}
@@ -146,6 +149,7 @@ int qspi_sync(const struct lfs_config *c)
 }
 
 // variables used by the filesystem
+uint16_t lfs_file_count = 0;
 static lfs_t lfs;
 static lfs_file_t file;
 
@@ -168,7 +172,7 @@ const struct lfs_config cfg = {
     .read_size = 4,
     .prog_size = 4,
     .block_size = 4096,
-    .block_count = 1024,
+    .block_count = 8192, //4096 bytes/block @ 256Mbit (33554432 bytes) = 8192 blocks
     .cache_size = 32,
     .lookahead_size = 16,
     .block_cycles = 500,
@@ -211,8 +215,8 @@ const struct lfs_config cfg = {
 
 #define APP_ADV_DURATION				18000									   /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 
-#define MIN_CONN_INTERVAL			   MSEC_TO_UNITS(7.5, UNIT_1_25_MS)			 /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
-#define MAX_CONN_INTERVAL			   MSEC_TO_UNITS(20, UNIT_1_25_MS)			 /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
+#define MIN_CONN_INTERVAL			   MSEC_TO_UNITS(15, UNIT_1_25_MS)			 /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
+#define MAX_CONN_INTERVAL			   MSEC_TO_UNITS(30, UNIT_1_25_MS)			 /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY				   0										   /**< Slave latency. */
 #define CONN_SUP_TIMEOUT				MSEC_TO_UNITS(4000, UNIT_10_MS)			 /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000)					   /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
@@ -828,6 +832,18 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			NRF_LOG_INFO("logline: %s",values_buffer);
 			NRF_LOG_FLUSH();
 		}
+
+		++esc_rx_cnt;
+#if HAS_DISPLAY
+		if (esc_rx_cnt % 2 == 0) {
+			Adafruit_GFX_fillCircle(120, 2, 2, WHITE);
+			Adafruit_GFX_fillCircle(110, 2, 2, BLACK);
+		} else {
+			Adafruit_GFX_fillCircle(120, 2, 2, BLACK);
+			Adafruit_GFX_fillCircle(110, 2, 2, WHITE);
+		}
+		SSD1306_display();
+#endif
 	}
 
 	// Watch telemetry data to trigger logging
@@ -1065,6 +1081,12 @@ int log_file_stop()
 {
 	if (log_file_active)
 	{
+#if HAS_DISPLAY
+		Adafruit_GFX_setCursor(0,16);
+		sprintf(display_text_buffer,"Logging inactive");
+		Adafruit_GFX_print(display_text_buffer);
+		SSD1306_display();
+#endif
 		log_file_active = false;
 		//TODO: Experienced a lockup here. No remote connected. BLE connected. lfs_file_close hangs after performing cat
 		lfs_unmount(&lfs);
@@ -1102,6 +1124,13 @@ void log_file_start()
 		NRF_LOG_INFO("log_file_active");
 		NRF_LOG_FLUSH();
 		log_file_active = true;
+		++lfs_file_count;
+#if HAS_DISPLAY
+		Adafruit_GFX_setCursor(0,16);
+		sprintf(display_text_buffer,"Logging active  ");
+		Adafruit_GFX_print(display_text_buffer);
+		SSD1306_display();
+#endif
 	}
 }
 
@@ -1179,12 +1208,26 @@ void littlefsInit()
             }
 			NRF_LOG_FLUSH();
 		}
+		else if (entryinfo.type == LFS_TYPE_REG)
+		{
+			++lfs_file_count;
+		}
 	}
 
 	lfs_dir_close(&lfs,&directory);
 
 	NRF_LOG_INFO("Directory listing complete");
 	NRF_LOG_FLUSH();
+
+#if HAS_DISPLAY
+	Adafruit_GFX_setCursor(0,8);
+	sprintf(display_text_buffer,"FS ready: %d files", lfs_file_count);
+	Adafruit_GFX_print(display_text_buffer);
+	Adafruit_GFX_setCursor(0,16);
+	sprintf(display_text_buffer,"Logging inactive");
+	Adafruit_GFX_print(display_text_buffer);
+	SSD1306_display();
+#endif
 }
 
 /////////////////////
@@ -1363,15 +1406,12 @@ void play_game(){
 		SSD1306_clearDisplay();
 
 		// hud
-		Adafruit_GFX_setCursor(100, 0);
-		sprintf(text,"%d",d);
-		
-		int cindex = 0;
-		while( text[ cindex ] != 0 )
-		{
-			Adafruit_GFX_write( text[ cindex++ ] );
-		}
 
+		// score
+		sprintf(text,"%d",d);
+		Adafruit_GFX_setCursor(100, 0);
+		Adafruit_GFX_print(text);
+		
 		// parallax clouds
 		Adafruit_GFX_drawBitmap(128 -(d%128),cloud_1_y,cloud_1,24,7,WHITE);
 
@@ -1460,13 +1500,9 @@ int main(void) {
 
 
 	char freetitle[] = "FreeSK8";
-	int cindex = 0;
 	Adafruit_GFX_setTextSize(1);
 	Adafruit_GFX_setTextColor(1,0);
-	while( freetitle[cindex] != 0 )
-	{
-		Adafruit_GFX_write(freetitle[ cindex++ ]);
-	}
+	Adafruit_GFX_print(freetitle);
 	SSD1306_display();
 
 #endif
@@ -1477,17 +1513,15 @@ int main(void) {
 	pwm_init();
 
 	//TODO: RREMOVE: Sweep 50 to 100% duty cycle
-	for (uint16_t i = 50; i < 100; ++i)
+	for (uint16_t i = 90; i < 100; ++i)
 	{
 		ready_flag = false;
 		/* Set the duty cycle - keep trying until PWM is ready... */
 		while (app_pwm_channel_duty_set(&PWM1, 0, i) == NRF_ERROR_BUSY){}
 #if HAS_DISPLAY
 		Adafruit_GFX_setCursor(0,8);
-		char output[8] = {0};
-		int cindex = 0;
-		sprintf(output,"%d%% ", i);
-		while( output[cindex] != 0 ) { Adafruit_GFX_write(output[ cindex++ ]); }
+		sprintf(display_text_buffer,"%d%% ", i);
+		Adafruit_GFX_print(display_text_buffer);
 		SSD1306_display();
 #endif
 		/* ... or wait for callback. */
