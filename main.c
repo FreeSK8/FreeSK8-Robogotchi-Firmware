@@ -1069,7 +1069,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	// Watch telemetry data to trigger logging
 	// If we are logging now see if we should stop
 	if (log_file_active) {
-		if(esc_telemetry.v_in < 8.0) { //TODO: Specify appropriate low voltage detection limit
+		if(esc_telemetry.v_in < 14.0) { //TODO: Specify appropriate low voltage detection limit
 			log_file_stop();
 			beep_speaker(50,50);
 			NRF_LOG_INFO("Logging stopped due to power drop");
@@ -1196,12 +1196,22 @@ static void logging_timer_handler(void *p_context) {
 	uart_send_buffer(telemetryPacket, 6);
 }
 
+void display_file_count(void)
+{
+#if HAS_DISPLAY
+	Adafruit_GFX_setCursor(0,8);
+	sprintf(display_text_buffer,"FS ready: %d files   ", lfs_file_count);
+	Adafruit_GFX_print(display_text_buffer);
+	SSD1306_display();
+#endif
+}
+
+//TODO: BUG: We need i2c for RTC. Cannot wrap the following in HAS_DISPLAY...
 #if HAS_DISPLAY
 void i2c_oled_comm_handle(uint8_t hdl_address, uint8_t *hdl_buffer, size_t hdl_buffer_size)
 {
 	nrf_drv_twi_tx(&m_twi_master, hdl_address, hdl_buffer, hdl_buffer_size, false);
 }
-
 
 /**
  * @brief Initialize the master TWI.
@@ -1357,17 +1367,6 @@ void update_status_packet(char * buffer)
 {
 	//TODO: Possible status variables: isLogging, bytesSaved, fileStartTime, fileCount
 	sprintf(buffer, "status,OK,%d,", log_file_active);
-}
-
-
-void display_file_count(void)
-{
-#if HAS_DISPLAY
-	Adafruit_GFX_setCursor(0,8);
-	sprintf(display_text_buffer,"FS ready: %d files   ", lfs_file_count);
-	Adafruit_GFX_print(display_text_buffer);
-	SSD1306_display();
-#endif
 }
 
 
