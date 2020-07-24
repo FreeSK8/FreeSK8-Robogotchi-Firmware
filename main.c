@@ -1179,7 +1179,6 @@ static void nrf_timer_handler(void *p_context) {
 static void logging_timer_handler(void *p_context) {
 	(void)p_context;
 
-	//TODO: request telemetry n log n stuff
 	rtc_get_time();
 
 	char dt_string[64] = {0};
@@ -1198,6 +1197,8 @@ static void logging_timer_handler(void *p_context) {
 
 void display_file_count(void)
 {
+	NRF_LOG_INFO("display_file_count");
+	NRF_LOG_FLUSH();
 #if HAS_DISPLAY
 	Adafruit_GFX_setCursor(0,8);
 	sprintf(display_text_buffer,"FS ready: %d files   ", lfs_file_count);
@@ -1354,6 +1355,8 @@ void log_file_start()
 		log_file_active = true;
 		++lfs_file_count;
 		display_file_count();
+		NRF_LOG_INFO("TODO: BUG: We crashed before here?");
+		NRF_LOG_FLUSH();
 #if HAS_DISPLAY
 		Adafruit_GFX_setCursor(0,16);
 		sprintf(display_text_buffer,"Logging active  ");
@@ -1753,7 +1756,7 @@ int main(void) {
 	pwm_init();
 
 	//TODO: RREMOVE: Sweep 50 to 100% duty cycle
-	for (uint16_t i = 90; i < 100; ++i)
+	for (uint16_t i = 50; i < 100; ++i)
 	{
 		ready_flag = false;
 		/* Set the duty cycle - keep trying until PWM is ready... */
