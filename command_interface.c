@@ -34,10 +34,9 @@ void command_interface_init(void (*ble_send_logbuffer)(unsigned char *, unsigned
     m_ble_tx_logbuffer = ble_send_logbuffer;
 }
 
-extern time_t currentTime;
 extern struct tm * tmTime;
 extern struct lfs_config cfg;
-
+extern void rtc_set_time( int year, int month, int day, int hour, int minute, int second );
 
 void command_interface_process_byte(char incoming)
 {
@@ -89,14 +88,7 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_INFO("command_interface: settime command received: %s", command_input_buffer + 8);
             NRF_LOG_FLUSH();
 
-            tmTime->tm_year = syear - 1900;
-            tmTime->tm_mon = smonth - 1;
-            tmTime->tm_mday = sday;
-            tmTime->tm_hour = shour;
-            tmTime->tm_min = sminute;
-            tmTime->tm_sec = ssecond;
-
-            currentTime = mktime(tmTime);
+            rtc_set_time( syear - 1900, smonth, sday, shour, sminute, ssecond );
         }
         else if(strncmp(command_input_buffer, "ls", 2) == 0)
         {
