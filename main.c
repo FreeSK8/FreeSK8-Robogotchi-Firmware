@@ -1701,10 +1701,8 @@ int main(void) {
 
 	nrf_gpio_cfg_input(PIN_BUTTON,NRF_GPIO_PIN_PULLUP);
 	nrf_gpio_cfg_output(LED_PIN);
-	//Flash LED to show sign of life //TODO: remove this
+	// Turn on LED during boot
 	nrf_gpio_pin_set(LED_PIN);
-	nrf_delay_ms(1000);
-
 
 #ifdef NRF52840_XXAA
 	nrf_drv_clock_init();
@@ -1723,7 +1721,7 @@ int main(void) {
 ///////////////////Display test
 
 #if HAS_DISPLAY
-	ret_code_t err_code = twi_master_init();
+	ret_code_t err_code = twi_master_init(); //TODO: move twi init outside HAS_DISPLAY for RTC
 	APP_ERROR_CHECK(err_code);
 
 	SSD1306_begin(SSD1306_SWITCHCAPVCC, 0x3C, false);
@@ -1749,33 +1747,12 @@ int main(void) {
 	rtc_battery_charge();
 	// Get the current time from the RTC
 	rtc_get_time();
-	
-	nrf_gpio_pin_clear(LED_PIN);
 
 ////////////////////////////
 
 	// Test piezo
 	pwm_init();
-
-	//TODO: RREMOVE: Sweep 50 to 100% duty cycle
-	for (uint16_t i = 50; i < 100; ++i)
-	{
-		ready_flag = false;
-		/* Set the duty cycle - keep trying until PWM is ready... */
-		while (app_pwm_channel_duty_set(&PWM1, 0, i) == NRF_ERROR_BUSY){}
-#if HAS_DISPLAY
-		Adafruit_GFX_setCursor(0,8);
-		sprintf(display_text_buffer,"%d%% ", i);
-		Adafruit_GFX_print(display_text_buffer);
-		SSD1306_display();
-#endif
-		/* ... or wait for callback. */
-		//while (!ready_flag);
-		//APP_ERROR_CHECK(app_pwm_channel_duty_set(&PWM1, 0, i));
-		nrf_delay_ms(25);
-	}
-	while (app_pwm_channel_duty_set(&PWM1, 0, 0) == NRF_ERROR_BUSY){}
-
+	beep_speaker(50,50);
 
 ////////////////////////////
 #if HAS_DISPLAY
@@ -1791,6 +1768,8 @@ int main(void) {
 	littlefsInit();
 
 /////////////////////////////
+	// Turn off LED during boot
+	nrf_gpio_pin_clear(LED_PIN);
 
 	uart_init();
 	app_timer_init();
