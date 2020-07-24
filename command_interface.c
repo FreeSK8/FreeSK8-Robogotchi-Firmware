@@ -194,6 +194,11 @@ void command_interface_process_byte(char incoming)
             NRF_POWER->GPREGRET = 0xB1;
             NVIC_SystemReset();
         }
+        else if(strncmp(command_input_buffer, "version", 7) == 0)
+        {
+            sprintf((char *)command_response_buffer, "version,0.0.1,alpha");
+            m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
+        }
 
         memset(command_input_buffer, 0, sizeof(command_input_buffer));
         command_input_index = 0;
