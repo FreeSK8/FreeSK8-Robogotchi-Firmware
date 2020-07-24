@@ -9,6 +9,7 @@
 #include "nrf_ble_gatt.h"
 
 extern uint16_t lfs_file_count;
+extern void display_file_count(void);
 extern int log_file_stop();
 extern void log_file_start();
 extern void update_status_packet(char * buffer);
@@ -170,7 +171,8 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_FLUSH();
             if (remove_response >= 0)
             {
-                --lfs_file_count;
+                if (lfs_file_count > 0) --lfs_file_count; //TODO: BUG: Sync with Erase in Mobile app will not actually erase but counter decrements. This makes file_count inaccurate desipte checking response from lfs_remove
+                display_file_count();
                 sprintf((char *)command_response_buffer, "rm,OK,%s", filename);
             } 
             else 

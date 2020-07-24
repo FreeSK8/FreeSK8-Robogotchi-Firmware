@@ -1125,6 +1125,7 @@ void log_file_start()
 		NRF_LOG_FLUSH();
 		log_file_active = true;
 		++lfs_file_count;
+		display_file_count();
 #if HAS_DISPLAY
 		Adafruit_GFX_setCursor(0,16);
 		sprintf(display_text_buffer,"Logging active  ");
@@ -1139,6 +1140,18 @@ void update_status_packet(char * buffer)
 	//TODO: Possible status variables: isLogging, bytesSaved, fileStartTime, fileCount
 	sprintf(buffer, "status,OK,%d,", log_file_active);
 }
+
+
+void display_file_count(void)
+{
+#if HAS_DISPLAY
+	Adafruit_GFX_setCursor(0,8);
+	sprintf(display_text_buffer,"FS ready: %d files   ", lfs_file_count);
+	Adafruit_GFX_print(display_text_buffer);
+	SSD1306_display();
+#endif
+}
+
 
 void littlefsInit()
 {
