@@ -1179,7 +1179,10 @@ static void nrf_timer_handler(void *p_context) {
 static void logging_timer_handler(void *p_context) {
 	(void)p_context;
 
-	rtc_get_time();
+	//TODO: disabled this line bc rtc_get_time() might overlap with LCD updates outside of this timer //rtc_get_time();
+	// Instead, increment time by 1 second as this is called at 1Hz
+	currentTime++;
+	tmTime = localtime( &currentTime );
 
 	char dt_string[64] = {0};
 	strftime(dt_string, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
@@ -1207,7 +1210,7 @@ void display_file_count(void)
 #endif
 }
 
-//TODO: BUG: We need i2c for RTC. Cannot wrap the following in HAS_DISPLAY...
+//TODO: BUG: We need i2c for RTC. Cannot wrap twi initialization in HAS_DISPLAY...
 #if HAS_DISPLAY
 void i2c_oled_comm_handle(uint8_t hdl_address, uint8_t *hdl_buffer, size_t hdl_buffer_size)
 {
@@ -1318,8 +1321,8 @@ int log_file_stop()
 #endif
 		log_file_active = false;
 		//TODO: Experienced a lockup here. No remote connected. BLE connected. lfs_file_close hangs after performing cat
-		lfs_unmount(&lfs);
-		lfs_mount(&lfs, &cfg);
+		//lfs_unmount(&lfs);
+		//lfs_mount(&lfs, &cfg);
 		//TODO: Testing a re-mount here
 		//NOTE: The crash is no longer repeatable with re-mounting and the file saves successfully even though we close
 		// the file handle after messing with the state of the lfs object/filesystem. What gives?
@@ -1344,8 +1347,8 @@ void log_file_start()
 	NRF_LOG_FLUSH();
 
 	//TODO: Experienced a lockup here. No remote connected. BLE connected. lfs_file_open hangs
-	lfs_unmount(&lfs);
-	lfs_mount(&lfs, &cfg);
+	//lfs_unmount(&lfs);
+	//lfs_mount(&lfs, &cfg);
 	//TODO: Testing a re-mount here like what worked in rm command
 
 	if ( lfs_file_open(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT) >= 0)
@@ -1355,8 +1358,6 @@ void log_file_start()
 		log_file_active = true;
 		++lfs_file_count;
 		display_file_count();
-		NRF_LOG_INFO("TODO: BUG: We crashed before here?");
-		NRF_LOG_FLUSH();
 #if HAS_DISPLAY
 		Adafruit_GFX_setCursor(0,16);
 		sprintf(display_text_buffer,"Logging active  ");
