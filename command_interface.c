@@ -261,6 +261,7 @@ void command_interface_continue_transfer(char* command)
         }
         else if(bytes_sent < file.ctz.size)
         {
+            //TODO: BUG: command_response_buffer is 244 bytes but we should limit to MTU
             int32_t read_response = lfs_file_read(m_lfs, &file, &command_response_buffer, sizeof(command_response_buffer));
             //NRF_LOG_INFO("read_response = %d", read_response);
             //NRF_LOG_FLUSH();
