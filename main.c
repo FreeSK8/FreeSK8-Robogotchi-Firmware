@@ -1048,13 +1048,16 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			}
 			// Write minimum telemetry data set
 			sprintf( values_buffer, "%s,values,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%d,%d\n", datetimestring, esc_telemetry.v_in, esc_telemetry.temp_motor, esc_telemetry.temp_mos, esc_telemetry.duty_now,esc_telemetry.current_motor,esc_telemetry.current_in, esc_telemetry.rpm, esc_telemetry.tachometer_abs,esc_telemetry.vesc_id);
-			NRF_LOG_INFO( "File Bytes Written: %d", lfs_file_write(&lfs, &file, values_buffer, strlen(values_buffer)) );
+			size_t bytes_written = 0;
+			if (log_file_active) bytes_written = lfs_file_write(&lfs, &file, values_buffer, strlen(values_buffer));
+			NRF_LOG_INFO( "File Bytes Written: %ld", bytes_written );
 			NRF_LOG_INFO("logline: %s",values_buffer);
 			NRF_LOG_FLUSH();
 		}
 
 		++esc_rx_cnt;
 #if HAS_DISPLAY
+/* TODO: Not sure why we fault here sometimes
 		if (esc_rx_cnt % 2 == 0) {
 			Adafruit_GFX_fillCircle(120, 2, 2, WHITE);
 			Adafruit_GFX_fillCircle(110, 2, 2, BLACK);
@@ -1063,6 +1066,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			Adafruit_GFX_fillCircle(110, 2, 2, WHITE);
 		}
 		SSD1306_display();
+*/
 #endif
 	}
 
@@ -1313,13 +1317,14 @@ int log_file_stop()
 {
 	if (log_file_active)
 	{
+		log_file_active = false;
+
 #if HAS_DISPLAY
 		Adafruit_GFX_setCursor(0,16);
 		sprintf(display_text_buffer,"Logging inactive");
 		Adafruit_GFX_print(display_text_buffer);
 		SSD1306_display();
 #endif
-		log_file_active = false;
 		//TODO: Experienced a lockup here. No remote connected. BLE connected. lfs_file_close hangs after performing cat
 		//lfs_unmount(&lfs);
 		//lfs_mount(&lfs, &cfg);
@@ -1426,7 +1431,7 @@ void littlefsInit()
 	{
 		NRF_LOG_INFO("%s %d bytes %s", entryinfo.type == LFS_TYPE_REG ? "FILE" : "DIR ", entryinfo.size, entryinfo.name);
 		NRF_LOG_FLUSH();
-		// TODO: Cleaning 0 bytes files from system during debugging
+		// Cleaning 0 bytes files from system at boot, they are of no use
 		if( entryinfo.type == LFS_TYPE_REG && entryinfo.size == 0 )
 		{
 			char filepath[64] = "/FreeSK8Logs/";
@@ -1724,6 +1729,7 @@ int main(void) {
 	ret_code_t err_code = twi_master_init(); //TODO: move twi init outside HAS_DISPLAY for RTC
 	APP_ERROR_CHECK(err_code);
 
+	nrf_delay_ms(50); //TODO: Display needs time before it can talk. Is 50ms too much?
 	SSD1306_begin(SSD1306_SWITCHCAPVCC, 0x3C, false);
 	Adafruit_GFX_init(SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT, SSD1306_drawPixel);
 
