@@ -1742,12 +1742,13 @@ int main(void) {
 #endif
 
 ////////////////////////////
-	// Allocate tmTime
+	// Allocate tmTime in memory
 	time ( &currentTime );
 	tmTime = localtime ( &currentTime );
-	
+	// Set RTC to trickle charge super capacitor
 	rtc_battery_charge();
-	
+	// Get the current time from the RTC
+	rtc_get_time();
 	
 	nrf_gpio_pin_clear(LED_PIN);
 

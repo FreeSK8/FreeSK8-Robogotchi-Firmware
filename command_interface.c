@@ -99,7 +99,7 @@ void command_interface_process_byte(char incoming)
             currentTime = mktime(tmTime);
 
             // Update time on RTC
-            rtc_set_time( syear - 1900, smonth, sday, shour, sminute, ssecond );
+            rtc_set_time( syear, smonth, sday, shour, sminute, ssecond );
         }
         else if(strncmp(command_input_buffer, "ls", 2) == 0)
         {
