@@ -369,6 +369,9 @@ upload_sd:
 mass_erase:
 	openocd -f openocd.cfg -c "init" -c "halt" -c "nrf5 mass_erase" -c "exit"
 
+debug_start:
+	openocd -f openocd.cfg
+
 merge_hex: $(TARGET_PATH)
 	mkdir -p hex
 	srec_cat $(SD_PATH) -intel $(TARGET_PATH) -intel -o hex/merged.hex -intel --line-length=44
