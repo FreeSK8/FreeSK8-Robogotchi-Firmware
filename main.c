@@ -973,8 +973,7 @@ static void nrf_timer_handler(void *p_context) {
 static void logging_timer_handler(void *p_context) {
 	(void)p_context;
 
-	//TODO: disabled this line bc rtc_get_time() might overlap with LCD updates outside of this timer //rtc_get_time();
-	// Instead, increment time by 1 second as this is called at 1Hz
+	// Increment time by 1 second as this is called at 1Hz
 	currentTime++;
 	tmTime = localtime( &currentTime );
 
