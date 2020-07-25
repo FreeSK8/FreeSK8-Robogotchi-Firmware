@@ -1504,13 +1504,19 @@ int main(void) {
 	app_usbd_class_append(class_cdc_acm);
 #endif
 
+////////////////////////////
+	// Test piezo
+	pwm_init();
+	beep_speaker(50,50); //Play tone for 50ms, allows time for OLED to init
+
+	// Init I2C
 	ret_code_t err_code = twi_master_init();
 	APP_ERROR_CHECK(err_code);
 
 ///////////////////Display test
 #if HAS_DISPLAY
-	nrf_delay_ms(50); //TODO: Display needs time before it can talk. Is 50ms too much?
-	SSD1306_begin(SSD1306_SWITCHCAPVCC, 0x3C, false);
+
+	SSD1306_begin(SSD1306_SWITCHCAPVCC, 0x3C, false); //Note, display needs few ms before it can talk
 	Adafruit_GFX_init(SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT, SSD1306_drawPixel);
 
 	SSD1306_clearDisplay();
@@ -1533,11 +1539,6 @@ int main(void) {
 	rtc_battery_charge();
 	// Get the current time from the RTC
 	rtc_get_time();
-
-////////////////////////////
-	// Test piezo
-	pwm_init();
-	beep_speaker(50,50);
 
 ////////////////////////////
 #if HAS_DISPLAY
