@@ -1506,7 +1506,7 @@ int main(void) {
 ////////////////////////////
 	// Test piezo
 	pwm_init();
-	beep_speaker(50,50); //Play tone for 50ms, allows time for OLED to init
+	beep_speaker(75,50); //Play tone blocking, allows time for OLED to init
 
 	// Init I2C
 	ret_code_t err_code = twi_master_init();
