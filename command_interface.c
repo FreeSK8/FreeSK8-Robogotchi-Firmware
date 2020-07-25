@@ -37,7 +37,7 @@ void command_interface_init(void (*ble_send_logbuffer)(unsigned char *, unsigned
 extern time_t currentTime;
 extern struct tm * tmTime;
 extern struct lfs_config cfg;
-extern void rtc_set_time( int year, int month, int day, int hour, int minute, int second );
+extern volatile bool update_rtc;
 
 void command_interface_process_byte(char incoming)
 {
@@ -99,7 +99,7 @@ void command_interface_process_byte(char incoming)
             currentTime = mktime(tmTime);
 
             // Update time on RTC
-            rtc_set_time( syear, smonth, sday, shour, sminute, ssecond );
+            update_rtc = true;
         }
         else if(strncmp(command_input_buffer, "ls", 2) == 0)
         {

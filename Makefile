@@ -126,6 +126,7 @@ SRC_FILES += \
   $(SDK_ROOT)/external/littlefs/lfs.c \
   $(SDK_ROOT)/external/littlefs/lfs_util.c \
   ble_fus.c \
+  rtc.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \
