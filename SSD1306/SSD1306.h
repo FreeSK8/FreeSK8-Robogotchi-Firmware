@@ -111,8 +111,6 @@ electronut.in
 #define SSD1306_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL 0x29
 #define SSD1306_VERTICAL_AND_LEFT_HORIZONTAL_SCROLL 0x2A
 
-int8_t _i2caddr, _vccstate;
-
 void SSD1306_begin(uint8_t switchvcc, uint8_t i2caddr, bool reset);
 void SSD1306_command(uint8_t c);
 

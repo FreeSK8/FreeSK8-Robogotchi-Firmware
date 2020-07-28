@@ -205,8 +205,9 @@ static uint8_t buffer[SSD1306_LCDHEIGHT * SSD1306_LCDWIDTH / 8] =
 static int width() {return SSD1306_LCDWIDTH;}
 static int height() {return SSD1306_LCDHEIGHT;}
 static int getRotation() {return 2;}
-int WIDTH = SSD1306_LCDWIDTH;
-int HEIGHT = SSD1306_LCDHEIGHT;
+static const int WIDTH = SSD1306_LCDWIDTH;
+static const int HEIGHT = SSD1306_LCDHEIGHT;
+static int8_t _i2caddr, _vccstate;
 
 // the most basic function, set a single pixel
 void SSD1306_drawPixel(int16_t x, int16_t y, uint16_t color) {
@@ -335,12 +336,19 @@ void SSD1306_invertDisplay(uint8_t i) {
     SSD1306_command(SSD1306_NORMALDISPLAY);
   }
 }
-
+#include "nrf_log.h"
+#include "nrf_log_ctrl.h"
 void SSD1306_command(uint8_t c)
 {
   ret_code_t ret;
-  uint8_t data[] = {0x00, c};
+  static uint8_t data[2] = {0};
+  data[1] = c;
   ret = nrf_drv_twi_tx(&m_twi_master, _i2caddr, data, 2, false);
+  if(ret!=NRF_SUCCESS)
+  {
+    NRF_LOG_INFO("SSD1306_command twi failed with: %d", ret);
+    NRF_LOG_FLUSH();
+  }
   APP_ERROR_CHECK(ret);
 }
 
@@ -461,19 +469,20 @@ void SSD1306_display(void) {
     //Serial.println(TWSR & 0x3, DEC);
 
     // I2C
-    for (uint16_t i=0; i<(SSD1306_LCDWIDTH*SSD1306_LCDHEIGHT/8); i++) {
-      uint8_t tmpBuf[17];
-      // SSD1306_SETSTARTLINE
-      tmpBuf[0] = 0x40;
-      // data
-      for (uint8_t j = 0; j < 16; j++) {
-        tmpBuf[j+1] = buffer[i];
-        i++;
-      }
-      i--;
+    static uint8_t tmpBuf[17];
+    for (uint16_t i=0; i<(SSD1306_LCDWIDTH*SSD1306_LCDHEIGHT/8); i+=16) {
+      tmpBuf[0] = SSD1306_SETSTARTLINE;
+
+      // copy address and data for register 40
+      memcpy(tmpBuf+1,buffer+i,16);
 
       ret_code_t ret;
       ret = nrf_drv_twi_tx(&m_twi_master, _i2caddr, tmpBuf, sizeof(tmpBuf), false);
+      if(ret!=NRF_SUCCESS)
+      {
+        NRF_LOG_INFO("SSD1306_Display twi failed with: %d", ret);
+        NRF_LOG_FLUSH();
+      }
       APP_ERROR_CHECK(ret);
     }
 

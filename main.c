@@ -1018,7 +1018,7 @@ static ret_code_t twi_master_init(void)
 	   .scl				= 27,
 	   .sda				= 26,
 	   .frequency		  = NRF_TWI_FREQ_400K,
-	   .interrupt_priority = APP_IRQ_PRIORITY_HIGH,
+	   .interrupt_priority = APP_IRQ_PRIORITY_MID,
 	   .clear_bus_init	 = true
 	};
 
@@ -1612,12 +1612,14 @@ int main(void) {
 			update_rtc = false;
 			rtc_set_time( tmTime->tm_year + 1900, tmTime->tm_mon + 1, tmTime->tm_mday, tmTime->tm_hour, tmTime->tm_min, tmTime->tm_sec );
 		}
-
+#if HAS_DISPLAY
 		if (update_display) {
 			update_display = false;
+			//CRITICAL_REGION_ENTER();
 			SSD1306_display();
+			//CRITICAL_REGION_EXIT();
 		}
-
+#endif
 		sd_app_evt_wait();
 	}
 }
