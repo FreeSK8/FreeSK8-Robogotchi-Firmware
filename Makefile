@@ -127,6 +127,9 @@ SRC_FILES += \
   $(SDK_ROOT)/external/littlefs/lfs_util.c \
   ble_fus.c \
   rtc.c \
+  uart_gps/gps_uart_fifo.c \
+  uart_gps/retarget.c \
+  lwgps/src/lwgps/lwgps.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \
@@ -262,7 +265,9 @@ INC_FOLDERS += \
   . \
   sdk_mod \
   SSD1306 \
-  $(SDK_ROOT)/external/littlefs/
+  $(SDK_ROOT)/external/littlefs/ \
+  uart_gps \
+  lwgps/src/include/ \
 
 # Libraries common to all targets
 LIB_FILES += \
