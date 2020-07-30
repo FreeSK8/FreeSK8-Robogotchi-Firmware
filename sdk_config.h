@@ -5851,6 +5851,10 @@
 #define UART_LEGACY_SUPPORT 1
 #endif
 
+#ifndef UART1_ENABLED
+#define UART1_ENABLED 1
+#endif
+
 // <e> UART0_ENABLED - Enable UART0 instance
 //==========================================================
 #ifndef UART0_ENABLED
