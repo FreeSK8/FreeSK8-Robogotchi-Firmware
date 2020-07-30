@@ -38,6 +38,7 @@
 #include "app_timer.h"
 #include "ble_fus.h"
 #include "app_uart.h"
+#include "gps_uart.h"
 #include "app_util_platform.h"
 #include "nrf_pwr_mgmt.h"
 #include "bsp_btn_ble.h"
@@ -79,6 +80,11 @@
 
 #include "nrf_drv_twi.h"
 const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
+
+#include "lwgps/lwgps.h"
+
+/* GPS handle */
+lwgps_t hgps;
 
 static volatile TELEMETRY_DATA esc_telemetry;
 static volatile int esc_rx_cnt = 0;
@@ -316,7 +322,17 @@ app_uart_comm_params_t m_uart_comm_params =
 		.baud_rate	= NRF_UARTE_BAUDRATE_115200
 #endif
 };
+gps_uart_comm_params_t m_gpsuart_comm_params =
+{
+		.rx_pin_no	= 3,
+		.tx_pin_no	= 2,
+		.rts_pin_no   = 0,
+		.cts_pin_no   = 0,
+		.flow_control = GPS_UART_FLOW_CONTROL_DISABLED,
+		.use_parity   = false,
+		.baud_rate	= NRF_UARTE_BAUDRATE_9600
 
+};
 // Functions
 void ble_printf(const char* format, ...);
 static void set_enabled(bool en);
@@ -685,6 +701,18 @@ void uart_event_handle(app_uart_evt_t * p_event) {
 		break;
 	}
 }
+void uart_gps_event_handle(gps_uart_evt_t * p_event) {
+	switch (p_event->evt_type) {
+	case GPS_UART_DATA_READY: {
+	} break;
+	case GPS_UART_COMMUNICATION_ERROR:
+		break;
+	case GPS_UART_FIFO_ERROR:
+		break;
+	default:
+		break;
+	}
+}
 
 static void uart_init(void) {
 	uint32_t err_code;
@@ -692,6 +720,16 @@ static void uart_init(void) {
 			UART_RX_BUF_SIZE,
 			UART_TX_BUF_SIZE,
 			uart_event_handle,
+			APP_IRQ_PRIORITY_LOW,
+			err_code);
+	APP_ERROR_CHECK(err_code);
+}
+static void gps_init(void) {
+	uint32_t err_code;
+	GPS_UART_FIFO_INIT(&m_gpsuart_comm_params,
+			UART_RX_BUF_SIZE,
+			64,
+			uart_gps_event_handle,
 			APP_IRQ_PRIORITY_LOW,
 			err_code);
 	APP_ERROR_CHECK(err_code);
@@ -726,13 +764,17 @@ static void set_enabled(bool en) {
 
 	if (m_is_enabled) {
 		app_uart_close();
+		gps_uart_close();
 		m_uart_comm_params.tx_pin_no = UART_TX;
 		uart_init();
+		gps_init();
 		nrf_gpio_cfg_default(UART_TX_DISABLED);
 	} else {
 		app_uart_close();
+		gps_uart_close();
 		m_uart_comm_params.tx_pin_no = UART_TX_DISABLED;
 		uart_init();
+		gps_init();
 		nrf_gpio_cfg_default(UART_TX);
 	}
 }
@@ -984,7 +1026,11 @@ static void logging_timer_handler(void *p_context) {
 		datetimestring[i] = dt_string[i];
 	}
 
-	NRF_LOG_INFO("This would be a nice time to perform logging %s", datetimestring);
+	//NRF_LOG_INFO("This would be a nice time to perform logging %s", datetimestring);
+	//NRF_LOG_FLUSH();
+	char debug_buff[196] = {0};
+	sprintf(debug_buff, "1Hz: %s, GPS: Valid %d, Fix %d, Mode %d, Lat %f Lon %f, SatInView %d, Seconds %d", datetimestring, hgps.is_valid, hgps.fix, hgps.fix_mode, hgps.latitude, hgps.longitude, hgps.sats_in_view, hgps.seconds);
+	NRF_LOG_INFO("%s", debug_buff);
 	NRF_LOG_FLUSH();
 
 	static unsigned char telemetryPacket[] = {0x02, 0x01, 0x04, 0x40, 0x84, 0x03};
@@ -1553,6 +1599,8 @@ int main(void) {
 	littlefsInit();
 
 /////////////////////////////
+
+	gps_init();
 	// Turn off LED during boot
 	nrf_gpio_pin_clear(LED_PIN);
 
@@ -1606,6 +1654,10 @@ int main(void) {
 		uint8_t byte;
 		while (app_uart_get(&byte) == NRF_SUCCESS) {
 			packet_process_byte(byte, PACKET_VESC);
+		}
+
+		while (gps_uart_get(&byte) == NRF_SUCCESS) {
+			lwgps_process(&hgps, &byte, sizeof(byte));
 		}
 
 		if (update_rtc) {
