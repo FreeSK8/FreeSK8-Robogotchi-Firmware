@@ -13,7 +13,7 @@ extern void display_file_count(void);
 extern int log_file_stop();
 extern void log_file_start();
 extern void update_status_packet(char * buffer);
-
+extern uint16_t m_ble_fus_max_data_len;
 
 static lfs_file_t file;
 static lfs_dir_t directory;
@@ -24,7 +24,7 @@ static lfs_t *m_lfs;
 
 static int command_input_index = 0;
 static char command_input_buffer[ 128 ] = { 0 };
-static unsigned char command_response_buffer[ 244 ];
+static unsigned char command_response_buffer[512];
 
 void command_interface_init(void (*ble_send_logbuffer)(unsigned char *, unsigned int), lfs_t *lfs)
 {
@@ -264,8 +264,7 @@ void command_interface_continue_transfer(char* command)
         }
         else if(bytes_sent < file.ctz.size)
         {
-            //TODO: BUG: command_response_buffer is 244 bytes but we should limit to MTU
-            int32_t read_response = lfs_file_read(m_lfs, &file, &command_response_buffer, sizeof(command_response_buffer));
+            int32_t read_response = lfs_file_read(m_lfs, &file, &command_response_buffer, m_ble_fus_max_data_len);
             //NRF_LOG_INFO("read_response = %d", read_response);
             //NRF_LOG_FLUSH();
             if(read_response > 0)

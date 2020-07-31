@@ -299,7 +299,7 @@ NRF_BLE_QWR_DEF(m_qwr);															 /**< Context for the Queued Write module.
 BLE_ADVERTISING_DEF(m_advertising);												 /**< Advertising module instance. */
 
 static uint16_t   m_conn_handle		  = BLE_CONN_HANDLE_INVALID;				 /**< Handle of the current connection. */
-static uint16_t   m_ble_fus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;			/**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
+uint16_t   m_ble_fus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;			/**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static ble_uuid_t m_adv_uuids[]		  =										  /**< Universally unique service identifier. */
 {
 		{BLE_UUID_FUS_SERVICE, FUS_SERVICE_UUID_TYPE}
@@ -666,6 +666,8 @@ static void ble_stack_init(void) {
 void gatt_evt_handler(nrf_ble_gatt_t * p_gatt, nrf_ble_gatt_evt_t const * p_evt) {
 	if ((m_conn_handle == p_evt->conn_handle) && (p_evt->evt_id == NRF_BLE_GATT_EVT_ATT_MTU_UPDATED)) {
 		m_ble_fus_max_data_len = p_evt->params.att_mtu_effective - OPCODE_LENGTH - HANDLE_LENGTH;
+		NRF_LOG_INFO("MTU Updated to %d bytes", m_ble_fus_max_data_len);
+		NRF_LOG_FLUSH();
 //		ble_printf("Data len is set to 0x%X(%d)", m_ble_nus_max_data_len, m_ble_nus_max_data_len);
 	}
 }
@@ -1033,8 +1035,17 @@ static void logging_timer_handler(void *p_context) {
 	NRF_LOG_INFO("%s", debug_buff);
 	NRF_LOG_FLUSH();
 
+	if (log_file_active && hgps.is_valid && hgps.fix > 0)
+	{
+		static char position_buffer[128]; //TODO: consolidate values and position buffers
+		sprintf(position_buffer, "%s,position,%0.5f,%0.5f,%d,%0.1f,%0.1f\n", datetimestring, hgps.latitude, hgps.longitude, hgps.sats_in_view, hgps.altitude, hgps.speed);
+		if (log_file_active) lfs_file_write(&lfs, &file, position_buffer, strlen(position_buffer));
+	}
+
 	static unsigned char telemetryPacket[] = {0x02, 0x01, 0x04, 0x40, 0x84, 0x03};
 	uart_send_buffer(telemetryPacket, 6);
+
+
 }
 
 void display_file_count(void)
