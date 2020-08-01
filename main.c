@@ -1164,8 +1164,8 @@ int log_file_stop()
 		update_display = true;
 #endif
 		//TODO: Experienced a lockup here. No remote connected. BLE connected. lfs_file_close hangs after performing cat
-		//lfs_unmount(&lfs);
-		//lfs_mount(&lfs, &cfg);
+		lfs_unmount(&lfs);
+		lfs_mount(&lfs, &cfg);
 		//TODO: Testing a re-mount here
 		//NOTE: The crash is no longer repeatable with re-mounting and the file saves successfully even though we close
 		// the file handle after messing with the state of the lfs object/filesystem. What gives?
@@ -1190,8 +1190,8 @@ void log_file_start()
 	NRF_LOG_FLUSH();
 
 	//TODO: Experienced a lockup here. No remote connected. BLE connected. lfs_file_open hangs
-	//lfs_unmount(&lfs);
-	//lfs_mount(&lfs, &cfg);
+	lfs_unmount(&lfs);
+	lfs_mount(&lfs, &cfg);
 	//TODO: Testing a re-mount here like what worked in rm command
 
 	if ( lfs_file_open(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT) >= 0)
