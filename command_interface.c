@@ -195,7 +195,7 @@ void command_interface_process_byte(char incoming)
         {
             // Set flag for DFU mode and reset device
             NRF_POWER->GPREGRET = 0xB1;
-            NVIC_SystemReset();
+            sd_nvic_SystemReset();
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
