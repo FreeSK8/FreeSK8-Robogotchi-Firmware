@@ -842,8 +842,10 @@ void send_status_packet()
 		ble_send_logbuffer(response_buffer, strlen((const char *)response_buffer));
 	}
 }
+#define FW5_PACKET_LENGTH 73
 static void process_packet_vesc(unsigned char *data, unsigned int len) {
-	if (data[0] == COMM_GET_VALUES){
+	// Additionally comparing with FW5_PACKET_LENGTH to safeguard against non-esc communication
+	if (data[0] == COMM_GET_VALUES && len == FW5_PACKET_LENGTH){
 		int32_t index = 1;
 		esc_telemetry.temp_mos = buffer_get_float16(data,10.0,&index);
 		esc_telemetry.temp_motor = buffer_get_float16(data,10.0,&index);
