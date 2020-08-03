@@ -213,7 +213,7 @@ const struct lfs_config cfg = {
 #if MODULE_BUILTIN
 #define DEVICE_NAME					 "FreeSK8 Receiver"
 #elif defined(MODULE_FREESK8)
-#define DEVICE_NAME   					"FreeSK8 Receiver"
+#define DEVICE_NAME   					"FreeSK8 Robogotchi"
 #else
 #define DEVICE_NAME					 "VESC 52840 UART"
 #endif
