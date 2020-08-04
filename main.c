@@ -850,7 +850,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 		esc_telemetry.temp_mos = buffer_get_float16(data,10.0,&index);
 		esc_telemetry.temp_motor = buffer_get_float16(data,10.0,&index);
 		esc_telemetry.current_motor = buffer_get_float32(data,100.0,&index);
-		esc_telemetry.current_in = buffer_get_float32(data,10.0,&index);
+		esc_telemetry.current_in = buffer_get_float32(data,100.0,&index);
 		esc_telemetry.foc_id = buffer_get_float32(data,100.0,&index);
 		esc_telemetry.foc_iq = buffer_get_float32(data,100.0,&index);
 		esc_telemetry.duty_now = buffer_get_float16(data,1000.0,&index);
