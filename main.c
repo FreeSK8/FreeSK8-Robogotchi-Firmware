@@ -1680,9 +1680,7 @@ int main(void) {
 #if HAS_DISPLAY
 		if (update_display) {
 			update_display = false;
-			//CRITICAL_REGION_ENTER();
 			SSD1306_display();
-			//CRITICAL_REGION_EXIT();
 		}
 #endif
 		sd_app_evt_wait();
