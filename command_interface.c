@@ -199,7 +199,7 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.0.4,alpha");
+            sprintf((char *)command_response_buffer, "version,0.0.7,alpha");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
 
@@ -226,8 +226,6 @@ void command_interface_continue_transfer(char* command)
                 {
                     // returning filename,filesize
                     sprintf((char *)command_response_buffer, "ls,FILE,%s,%ld", entryinfo.name,  entryinfo.size);
-                    //NRF_LOG_INFO((const char *)command_response_buffer); //TODO: This looks like dookie but sends correct
-                    //NRF_LOG_FLUSH();
                     // send response over BLE
                     m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
                     break;
@@ -236,8 +234,6 @@ void command_interface_continue_transfer(char* command)
                 {
                     // returning filename,filesize
                     sprintf((char *)command_response_buffer, "ls,DIR,%s,%ld", entryinfo.name,  entryinfo.size);
-                    //NRF_LOG_INFO((const char *)command_response_buffer); //TODO: This looks like dookie but sends correct
-                    //NRF_LOG_FLUSH();
                     // send response over BLE
                     m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
                     break;
@@ -260,6 +256,11 @@ void command_interface_continue_transfer(char* command)
             m_ble_tx_logbuffer((unsigned char *)"cat,complete", strlen("cat,complete"));
 
             NRF_LOG_INFO("finished cat");
+            NRF_LOG_FLUSH();
+
+            int close_result = lfs_file_close(m_lfs, &file);
+
+            NRF_LOG_INFO("cat close result: %d", close_result);
             NRF_LOG_FLUSH();
         }
         else if(bytes_sent < file.ctz.size)

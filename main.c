@@ -1047,7 +1047,10 @@ static void logging_timer_handler(void *p_context) {
 	static unsigned char telemetryPacket[] = {0x02, 0x01, 0x04, 0x40, 0x84, 0x03};
 	uart_send_buffer(telemetryPacket, 6);
 
-
+	if (log_file_active && currentTime % 60 == 0)
+	{
+		lfs_file_sync(&lfs, &file);
+	}
 }
 
 void display_file_count(void)
@@ -1165,12 +1168,6 @@ int log_file_stop()
 		Adafruit_GFX_print(display_text_buffer);
 		update_display = true;
 #endif
-		//TODO: Experienced a lockup here. No remote connected. BLE connected. lfs_file_close hangs after performing cat
-		lfs_unmount(&lfs);
-		lfs_mount(&lfs, &cfg);
-		//TODO: Testing a re-mount here
-		//NOTE: The crash is no longer repeatable with re-mounting and the file saves successfully even though we close
-		// the file handle after messing with the state of the lfs object/filesystem. What gives?
 		return lfs_file_close(&lfs, &file);
 	}
 	return -1;
@@ -1191,12 +1188,8 @@ void log_file_start()
 	NRF_LOG_INFO("Creating log file: %s",filename);
 	NRF_LOG_FLUSH();
 
-	//TODO: Experienced a lockup here. No remote connected. BLE connected. lfs_file_open hangs
-	lfs_unmount(&lfs);
-	lfs_mount(&lfs, &cfg);
-	//TODO: Testing a re-mount here like what worked in rm command
-
-	if ( lfs_file_open(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT) >= 0)
+	int file_open_result = lfs_file_open(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT);
+	if (file_open_result >= 0)
 	{
 		NRF_LOG_INFO("log_file_active");
 		NRF_LOG_FLUSH();
@@ -1209,6 +1202,9 @@ void log_file_start()
 		Adafruit_GFX_print(display_text_buffer);
 		update_display = true;
 #endif
+	} else {
+		NRF_LOG_ERROR("log_file_start::lfs_file_open: Failed with result: %d", file_open_result);
+		NRF_LOG_FLUSH();
 	}
 }
 
