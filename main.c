@@ -878,18 +878,20 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			//FileManager.writeToLogFile("${dtNow.toIso8601String().substring(0,21)},values,${telemetryPacket.v_in},${telemetryPacket.temp_motor},${telemetryPacket.temp_mos},${telemetryPacket.duty_now},${telemetryPacket.current_motor},${telemetryPacket.current_in},${telemetryPacket.rpm},${telemetryPacket.tachometer_abs},${telemetryPacket.vesc_id}\n");
             //2020-05-19T13:46:28.8, values, 12.9, -99.9, 29.0, 0.0, 0.0, 0.0, 0.0, 11884, 102
 			char values_buffer[ 256 ] = {0};
+			size_t bytes_written = 0;
 			// Write fault codes to their own line
 			if (esc_telemetry.fault_code != 0) {
 				sprintf( values_buffer, "%s,fault,%s,%d,%d\n", datetimestring,  mc_fault_to_string(esc_telemetry.fault_code), esc_telemetry.fault_code, esc_telemetry.vesc_id);
-				NRF_LOG_INFO( "File Bytes Written: %d", lfs_file_write(&lfs, &file, values_buffer, strlen(values_buffer)) );
-				NRF_LOG_INFO("logline: %s",values_buffer);
+				bytes_written = lfs_file_write(&lfs, &file, values_buffer, strlen(values_buffer));
+				NRF_LOG_INFO("ESC Bytes Written: %ld", bytes_written);
+				NRF_LOG_INFO("ESC Data Written: %s",values_buffer);
+				NRF_LOG_FLUSH();
 			}
 			// Write minimum telemetry data set
 			sprintf( values_buffer, "%s,values,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%d,%d\n", datetimestring, esc_telemetry.v_in, esc_telemetry.temp_motor, esc_telemetry.temp_mos, esc_telemetry.duty_now,esc_telemetry.current_motor,esc_telemetry.current_in, esc_telemetry.rpm, esc_telemetry.tachometer_abs,esc_telemetry.vesc_id);
-			size_t bytes_written = 0;
 			if (log_file_active) bytes_written = lfs_file_write(&lfs, &file, values_buffer, strlen(values_buffer));
-			NRF_LOG_INFO( "File Bytes Written: %ld", bytes_written );
-			NRF_LOG_INFO("logline: %s",values_buffer);
+			NRF_LOG_INFO("ESC Bytes Written: %ld", bytes_written);
+			NRF_LOG_INFO("ESC Data Written: %s",values_buffer);
 			NRF_LOG_FLUSH();
 		}
 
@@ -1041,7 +1043,12 @@ static void logging_timer_handler(void *p_context) {
 	{
 		static char position_buffer[128]; //TODO: consolidate values and position buffers
 		sprintf(position_buffer, "%s,position,%0.5f,%0.5f,%d,%0.1f,%0.1f\n", datetimestring, hgps.latitude, hgps.longitude, hgps.sats_in_view, hgps.altitude, hgps.speed);
-		if (log_file_active) lfs_file_write(&lfs, &file, position_buffer, strlen(position_buffer));
+		if (log_file_active)
+		{
+			size_t gps_write_result = lfs_file_write(&lfs, &file, position_buffer, strlen(position_buffer));
+			NRF_LOG_INFO("GPS Bytes Written: %ld", gps_write_result);
+			NRF_LOG_FLUSH();
+		}
 	}
 
 	static unsigned char telemetryPacket[] = {0x02, 0x01, 0x04, 0x40, 0x84, 0x03};
