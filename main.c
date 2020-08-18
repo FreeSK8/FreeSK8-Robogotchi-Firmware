@@ -86,6 +86,10 @@ const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
 /* GPS handle */
 lwgps_t hgps;
 
+NRF_BLE_GQ_DEF(m_ble_gatt_queue,
+               NRF_SDH_BLE_CENTRAL_LINK_COUNT,
+               NRF_BLE_GQ_QUEUE_SIZE);
+
 static volatile TELEMETRY_DATA esc_telemetry;
 static volatile int esc_rx_cnt = 0;
 

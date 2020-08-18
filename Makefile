@@ -16,16 +16,16 @@ VERBOSE=1
 CFLAGS += $(build_args)
 
 # Path to the NRF52 SDK. Change if needed.
-SDK_ROOT := /home/renee/Documents/nRF5_SDK_15.3.0_59ac345
+SDK_ROOT := /home/renee/Documents/nRF5_SDK_16.0.0_98a08e2
 
 TARGET_PATH := $(OUTPUT_DIRECTORY)/$(TARGETS).hex
 
 ifeq ($(IS_52832),1)
 $(OUTPUT_DIRECTORY)/$(TARGETS).out: LINKER_SCRIPT := ld_sd_52832.ld
-SD_PATH := $(SDK_ROOT)/components/softdevice/s132/hex/s132_nrf52_6.1.1_softdevice.hex
+SD_PATH := $(SDK_ROOT)/components/softdevice/s132/hex/s132_nrf52_7.0.1_softdevice.hex
 else
 $(OUTPUT_DIRECTORY)/$(TARGETS).out: LINKER_SCRIPT := ld_sd_52840.ld
-SD_PATH := $(SDK_ROOT)/components/softdevice/s140/hex/s140_nrf52_6.1.1_softdevice.hex
+SD_PATH := $(SDK_ROOT)/components/softdevice/s140/hex/s140_nrf52_7.0.1_softdevice.hex
 endif
 
 # Source files
@@ -130,6 +130,7 @@ SRC_FILES += \
   uart_gps/gps_uart_fifo.c \
   uart_gps/retarget.c \
   lwgps/src/lwgps/lwgps.c \
+  $(SDK_ROOT)/components/ble/nrf_ble_gq/nrf_ble_gq.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \
@@ -268,6 +269,7 @@ INC_FOLDERS += \
   littlefs/ \
   uart_gps \
   lwgps/src/include/ \
+  $(SDK_ROOT)/components/ble/nrf_ble_gq/ \
 
 # Libraries common to all targets
 LIB_FILES += \
@@ -290,7 +292,7 @@ CFLAGS += -DNRF52840_XXAA
 endif
 CFLAGS += -DCONFIG_GPIO_AS_PINRESET
 CFLAGS += -DFLOAT_ABI_HARD
-CFLAGS += -DNRF_SD_BLE_API_VERSION=6
+CFLAGS += -DNRF_SD_BLE_API_VERSION=7
 CFLAGS += -DSOFTDEVICE_PRESENT
 CFLAGS += -DSWI_DISABLE0
 CFLAGS += -mcpu=cortex-m4
@@ -323,7 +325,7 @@ ASMFLAGS += -mthumb -mabi=aapcs
 ASMFLAGS += -mfloat-abi=hard -mfpu=fpv4-sp-d16
 ASMFLAGS += -DCONFIG_GPIO_AS_PINRESET
 ASMFLAGS += -DFLOAT_ABI_HARD
-ASMFLAGS += -DNRF_SD_BLE_API_VERSION=6
+ASMFLAGS += -DNRF_SD_BLE_API_VERSION=7
 ASMFLAGS += -DSOFTDEVICE_PRESENT
 ASMFLAGS += -DSWI_DISABLE0
 
