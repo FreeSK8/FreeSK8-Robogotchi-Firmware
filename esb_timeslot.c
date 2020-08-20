@@ -30,8 +30,8 @@ do                                                      \
 #define UESB_RX_HANDLE_IRQHandler   WDT_IRQHandler          /**< The IRQ handler of WDT interrupt */
 #define UESB_RX_HANDLE_IRQPriority  3                       /**< Interrupt priority of @ref UESB_RX_HANDLE_IRQn. */
 
-#define TS_LEN_US                   (1000UL)                /**< Length of timeslot to be requested. */
-#define TX_LEN_EXTENSION_US         (1000UL)                /**< Length of timeslot to be extended. */
+#define TS_LEN_US                   (1500UL)                /**< Length of timeslot to be requested. */
+#define TX_LEN_EXTENSION_US         (1500UL)                /**< Length of timeslot to be extended. */
 #define TS_SAFETY_MARGIN_US         (200UL)                 /**< The timeslot activity should be finished with this much to spare. */
 #define TS_EXTEND_MARGIN_US         (500UL)                /**< Margin reserved for extension processing. */
 
@@ -62,7 +62,7 @@ static volatile bool m_next_packet_set;
 uint32_t request_next_event_earliest(void) {
 	m_timeslot_request.request_type = NRF_RADIO_REQ_TYPE_EARLIEST;
 	m_timeslot_request.params.earliest.hfclk = NRF_RADIO_HFCLK_CFG_XTAL_GUARANTEED;
-	m_timeslot_request.params.earliest.priority = NRF_RADIO_PRIORITY_NORMAL;
+	m_timeslot_request.params.earliest.priority = NRF_RADIO_PRIORITY_HIGH;
 	m_timeslot_request.params.earliest.length_us = TS_LEN_US;
 	m_timeslot_request.params.earliest.timeout_us = 1000000;
 	return sd_radio_request(&m_timeslot_request);
@@ -73,7 +73,7 @@ uint32_t request_next_event_earliest(void) {
 void configure_next_event_earliest(void) {
 	m_timeslot_request.request_type = NRF_RADIO_REQ_TYPE_EARLIEST;
 	m_timeslot_request.params.earliest.hfclk = NRF_RADIO_HFCLK_CFG_XTAL_GUARANTEED;
-	m_timeslot_request.params.earliest.priority = NRF_RADIO_PRIORITY_NORMAL;
+	m_timeslot_request.params.earliest.priority = NRF_RADIO_PRIORITY_HIGH;
 	m_timeslot_request.params.earliest.length_us = TS_LEN_US;
 	m_timeslot_request.params.earliest.timeout_us = 1000000;
 }
