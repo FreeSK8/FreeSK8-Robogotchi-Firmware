@@ -131,6 +131,9 @@ SRC_FILES += \
   uart_gps/retarget.c \
   lwgps/src/lwgps/lwgps.c \
   $(SDK_ROOT)/components/ble/nrf_ble_gq/nrf_ble_gq.c \
+  $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_spi.c \
+  $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_spim.c \
+  $(SDK_ROOT)/integration/nrfx/legacy/nrf_drv_spi.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \

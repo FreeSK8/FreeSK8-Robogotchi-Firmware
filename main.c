@@ -23,7 +23,7 @@
 
 #include "nrf_fstorage.h"
 #include "nrf_drv_qspi.h"
-
+#include "nrf_drv_spi.h"
 #include "nordic_common.h"
 #include "nrf.h"
 #include "ble_hci.h"
@@ -1538,6 +1538,61 @@ void play_game(){
 //You didn't listen when I said don't ask, did you?
 #endif
 
+
+#define SPI_INSTANCE  2 /**< SPI instance index. */
+static const nrf_drv_spi_t spi = NRF_DRV_SPI_INSTANCE(SPI_INSTANCE);  /**< SPI instance. */
+static volatile bool spi_xfer_done;  /**< Flag used to indicate that SPI instance completed the transfer. */
+
+#define TEST_STRING "Nordic"
+static uint8_t       m_tx_buf[] = TEST_STRING;           /**< TX buffer. */
+static uint8_t       m_rx_buf[sizeof(TEST_STRING) + 1];    /**< RX buffer. */
+static const uint8_t m_length = sizeof(m_tx_buf);        /**< Transfer length. */
+
+/**
+ * @brief SPI user event handler.
+ * @param event
+ */
+void spi_event_handler(nrf_drv_spi_evt_t const * p_event,
+                       void *                    p_context)
+{
+    spi_xfer_done = true;
+    NRF_LOG_INFO("Transfer completed.");
+    if (m_rx_buf[0] != 0)
+    {
+        NRF_LOG_INFO(" Received:");
+        NRF_LOG_HEXDUMP_INFO(m_rx_buf, strlen((const char *)m_rx_buf));
+    }
+}
+
+void spi_init(void)
+{
+	nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
+    spi_config.ss_pin   = 31;
+    spi_config.miso_pin = 30;
+    spi_config.mosi_pin = 29;
+    spi_config.sck_pin  = 28;
+    APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, spi_event_handler, NULL));
+
+    NRF_LOG_INFO("SPI example started.");
+	while (0)
+    {
+        // Reset rx buffer and transfer done flag
+        memset(m_rx_buf, 0, m_length);
+        spi_xfer_done = false;
+
+        APP_ERROR_CHECK(nrf_drv_spi_transfer(&spi, m_tx_buf, m_length, m_rx_buf, m_length));
+
+        while (!spi_xfer_done)
+        {
+            __WFE();
+        }
+
+        NRF_LOG_FLUSH();
+
+        bsp_board_led_invert(BSP_BOARD_LED_0);
+        nrf_delay_ms(200);
+    }
+}
 int main(void) {
 
 	nrf_gpio_cfg_input(PIN_BUTTON,NRF_GPIO_PIN_PULLUP);
@@ -1610,6 +1665,7 @@ int main(void) {
 /////////////////////////////
 
 	gps_init();
+	spi_init();
 	// Turn off LED during boot
 	nrf_gpio_pin_clear(LED_PIN);
 
