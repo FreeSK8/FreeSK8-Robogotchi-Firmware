@@ -233,7 +233,7 @@ const struct lfs_config cfg = {
 
 #define APP_ADV_DURATION				18000									   /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 
-#define MIN_CONN_INTERVAL			   MSEC_TO_UNITS(15, UNIT_1_25_MS)			 /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
+#define MIN_CONN_INTERVAL			   MSEC_TO_UNITS(7.5, UNIT_1_25_MS)			 /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
 #define MAX_CONN_INTERVAL			   MSEC_TO_UNITS(35, UNIT_1_25_MS)			 /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY				   0										   /**< Slave latency. */
 #define CONN_SUP_TIMEOUT				MSEC_TO_UNITS(4000, UNIT_10_MS)			 /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
@@ -330,7 +330,7 @@ gps_uart_comm_params_t m_gpsuart_comm_params =
 		.cts_pin_no   = 0,
 		.flow_control = GPS_UART_FLOW_CONTROL_DISABLED,
 		.use_parity   = false,
-		.baud_rate	= NRF_UARTE_BAUDRATE_9600
+		.baud_rate	= NRF_UARTE_BAUDRATE_4800
 
 };
 // Functions
@@ -938,10 +938,16 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 
 	// Finish packet processing
 	if (data[0] == COMM_EXT_NRF_ESB_SET_CH_ADDR) {
+		NRF_LOG_INFO("esb_timeslot_set_ch_addr 0x%02x", data[1]);
+		NRF_LOG_FLUSH();
 		esb_timeslot_set_ch_addr(data[1], data[2], data[3], data[4]);
 	} else if (data[0] == COMM_EXT_NRF_ESB_SEND_DATA) {
+		//NRF_LOG_INFO("rfhelp_send_data_crc length %d", len-1);
+		//NRF_LOG_FLUSH();
 		rfhelp_send_data_crc(data + 1, len - 1);
 	} else if (data[0] == COMM_EXT_NRF_SET_ENABLED) {
+		NRF_LOG_INFO("comm_ext_nrf_set_enabled");
+		NRF_LOG_FLUSH();
 		set_enabled(data[1]);
 	} else {
 		if (m_is_enabled) {

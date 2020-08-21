@@ -30,8 +30,8 @@ do                                                      \
 #define UESB_RX_HANDLE_IRQHandler   WDT_IRQHandler          /**< The IRQ handler of WDT interrupt */
 #define UESB_RX_HANDLE_IRQPriority  3                       /**< Interrupt priority of @ref UESB_RX_HANDLE_IRQn. */
 
-#define TS_LEN_US                   (1500UL)                /**< Length of timeslot to be requested. */
-#define TX_LEN_EXTENSION_US         (1500UL)                /**< Length of timeslot to be extended. */
+#define TS_LEN_US                   (2000UL)                /**< Length of timeslot to be requested. */
+#define TX_LEN_EXTENSION_US         (2000UL)                /**< Length of timeslot to be extended. */
 #define TS_SAFETY_MARGIN_US         (200UL)                 /**< The timeslot activity should be finished with this much to spare. */
 #define TS_EXTEND_MARGIN_US         (500UL)                /**< Margin reserved for extension processing. */
 
