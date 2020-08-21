@@ -68,7 +68,7 @@
 #include "packet.h"
 #include "buffer.h"
 #include "datatypes.h"
-#include "esb_timeslot.h"
+
 #include "crc.h"
 
 #include "nrf_log.h"
@@ -793,7 +793,7 @@ void rfhelp_send_data_crc(uint8_t *data, unsigned int len) {
 	memcpy(buffer, data, len);
 	buffer[len] = (char)(crc >> 8);
 	buffer[len + 1] = (char)(crc & 0xFF);
-	esb_timeslot_set_next_packet(buffer, len + 2);
+	//TODO: esb_timeslot_set_next_packet(buffer, len + 2);
 }
 
 static void ble_send_buffer(unsigned char *data, unsigned int len) {
@@ -940,7 +940,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	if (data[0] == COMM_EXT_NRF_ESB_SET_CH_ADDR) {
 		NRF_LOG_INFO("esb_timeslot_set_ch_addr 0x%02x", data[1]);
 		NRF_LOG_FLUSH();
-		esb_timeslot_set_ch_addr(data[1], data[2], data[3], data[4]);
+		//TODO: esb_timeslot_set_ch_addr(data[1], data[2], data[3], data[4]);
 	} else if (data[0] == COMM_EXT_NRF_ESB_SEND_DATA) {
 		//NRF_LOG_INFO("rfhelp_send_data_crc length %d", len-1);
 		//NRF_LOG_FLUSH();
@@ -996,7 +996,7 @@ static void esb_timeslot_data_handler(void *p_data, uint16_t length) {
 		buffer[0] = COMM_EXT_NRF_ESB_RX_DATA;
 		memcpy(buffer + 1, p_data, length);
 		CRITICAL_REGION_ENTER();
-		packet_send_packet(buffer, length + 1, PACKET_VESC);
+		//TODO: packet_send_packet(buffer, length + 1, PACKET_VESC);
 		CRITICAL_REGION_EXIT();
 	}
 }
@@ -1652,8 +1652,8 @@ int main(void) {
 	app_timer_create(&m_logging_timer, APP_TIMER_MODE_REPEATED, logging_timer_handler);
 	app_timer_start(m_logging_timer, APP_TIMER_TICKS(1000), NULL);
 
-	esb_timeslot_init(esb_timeslot_data_handler);
-	esb_timeslot_sd_start();
+	//esb_timeslot_init(esb_timeslot_data_handler);
+	//esb_timeslot_sd_start();
 
 #ifdef NRF52840_XXAA
 	app_usbd_power_events_enable();

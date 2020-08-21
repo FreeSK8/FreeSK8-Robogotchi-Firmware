@@ -115,8 +115,6 @@ SRC_FILES += \
   crc.c \
   packet.c \
   i2c_bb.c \
-  sdk_mod/nrf_esb.c \
-  esb_timeslot.c \
   SSD1306/SSD1306.c \
   SSD1306/Adafruit_GFX.c \
   command_interface.c \
