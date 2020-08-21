@@ -940,10 +940,8 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	if (data[0] == COMM_EXT_NRF_ESB_SET_CH_ADDR) {
 		NRF_LOG_INFO("esb_timeslot_set_ch_addr 0x%02x", data[1]);
 		NRF_LOG_FLUSH();
-		//TODO: esb_timeslot_set_ch_addr(data[1], data[2], data[3], data[4]);
 	} else if (data[0] == COMM_EXT_NRF_ESB_SEND_DATA) {
-		//NRF_LOG_INFO("rfhelp_send_data_crc length %d", len-1);
-		//NRF_LOG_FLUSH();
+		//Send data to the user's remote
 		rfhelp_send_data_crc(data + 1, len - 1);
 	} else if (data[0] == COMM_EXT_NRF_SET_ENABLED) {
 		NRF_LOG_INFO("comm_ext_nrf_set_enabled");
@@ -988,17 +986,6 @@ void cdc_printf(const char* format, ...) {
 #else
 	(void)format;
 #endif
-}
-
-static void esb_timeslot_data_handler(void *p_data, uint16_t length) {
-	if (m_other_comm_disable_time == 0) {
-		uint8_t buffer[length + 1];
-		buffer[0] = COMM_EXT_NRF_ESB_RX_DATA;
-		memcpy(buffer + 1, p_data, length);
-		CRITICAL_REGION_ENTER();
-		//TODO: packet_send_packet(buffer, length + 1, PACKET_VESC);
-		CRITICAL_REGION_EXIT();
-	}
 }
 
 static void packet_timer_handler(void *p_context) {
@@ -1651,9 +1638,6 @@ int main(void) {
 
 	app_timer_create(&m_logging_timer, APP_TIMER_MODE_REPEATED, logging_timer_handler);
 	app_timer_start(m_logging_timer, APP_TIMER_TICKS(1000), NULL);
-
-	//esb_timeslot_init(esb_timeslot_data_handler);
-	//esb_timeslot_sd_start();
 
 #ifdef NRF52840_XXAA
 	app_usbd_power_events_enable();
