@@ -192,7 +192,7 @@ const struct lfs_config cfg = {
     .prog_size = 4,
     .block_size = 4096,
     .block_count = 8192, //4096 bytes/block @ 256Mbit (33554432 bytes) = 8192 blocks
-    .cache_size = 32,
+    .cache_size = 2048,
     .lookahead_size = 16,
     .block_cycles = 500,
 };
