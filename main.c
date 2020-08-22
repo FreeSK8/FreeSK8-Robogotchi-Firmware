@@ -109,6 +109,7 @@ struct tm * tmTime;
 time_t currentTime;
 static volatile char datetimestring[ 64 ] = { 0 };
 static volatile bool log_file_active = false;
+static volatile bool write_logdata_now = false;
 
 // Piezo
 #define PIN_PIEZO 10
@@ -871,12 +872,12 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 		esc_telemetry.vd = buffer_get_float32(data,100.0,&index);
 		esc_telemetry.vq = buffer_get_float32(data,100.0,&index);
 
-		//TODO: Rate limit writing telemetry since real time data also requests this packet
-		// 		Unless there is a fault!
-		if (log_file_active)
+		//TODO: If there is a fault we would like to write_logdata_now but still need a sensible rate limit to protect storage
+		if (log_file_active && write_logdata_now)
 		{
-			//FileManager.writeToLogFile("${dtNow.toIso8601String().substring(0,21)},values,${telemetryPacket.v_in},${telemetryPacket.temp_motor},${telemetryPacket.temp_mos},${telemetryPacket.duty_now},${telemetryPacket.current_motor},${telemetryPacket.current_in},${telemetryPacket.rpm},${telemetryPacket.tachometer_abs},${telemetryPacket.vesc_id}\n");
-            //2020-05-19T13:46:28.8, values, 12.9, -99.9, 29.0, 0.0, 0.0, 0.0, 0.0, 11884, 102
+			// Clear write now flag
+			write_logdata_now = false;
+
 			char values_buffer[ 256 ] = {0};
 			size_t bytes_written = 0;
 			// Write fault codes to their own line
@@ -1014,6 +1015,9 @@ static void nrf_timer_handler(void *p_context) {
 static void logging_timer_handler(void *p_context) {
 	(void)p_context;
 
+	// Set flag to write 1Hz data
+	write_logdata_now = true;
+
 	// Increment time by 1 second as this is called at 1Hz
 	currentTime++;
 	tmTime = localtime( &currentTime );
@@ -1148,6 +1152,7 @@ void qspiInit()
 	nrf_drv_qspi_config_t config = NRF_DRV_QSPI_DEFAULT_CONFIG;
 
 	err_code = nrf_drv_qspi_init(&config, NULL, NULL);
+	NRF_LOG_INFO("QSPI driver init response %d", err_code);
 	APP_ERROR_CHECK(err_code);
 	NRF_LOG_INFO("QSPI driver initialized");
 
