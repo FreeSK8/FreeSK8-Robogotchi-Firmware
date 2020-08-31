@@ -291,7 +291,6 @@ const struct lfs_config cfg = {
 
 // Private variables
 APP_TIMER_DEF(m_packet_timer);
-APP_TIMER_DEF(m_nrf_timer);
 APP_TIMER_DEF(m_logging_timer);
 
 BLE_FUS_DEF(m_fus, NRF_SDH_BLE_TOTAL_LINK_COUNT);								   /**< BLE FUS service instance. */
@@ -336,7 +335,6 @@ gps_uart_comm_params_t m_gpsuart_comm_params =
 };
 // Functions
 void ble_printf(const char* format, ...);
-static void set_enabled(bool en);
 
 #ifdef NRF52840_XXAA
 static void cdc_acm_user_ev_handler(app_usbd_class_inst_t const * p_inst,
@@ -762,39 +760,10 @@ static void advertising_init(void) {
 	ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
 }
 
-static void set_enabled(bool en) {
-	m_is_enabled = en;
-
-	if (m_is_enabled) {
-		app_uart_close();
-		gps_uart_close();
-		m_uart_comm_params.tx_pin_no = UART_TX;
-		uart_init();
-		gps_init();
-		nrf_gpio_cfg_default(UART_TX_DISABLED);
-	} else {
-		app_uart_close();
-		gps_uart_close();
-		m_uart_comm_params.tx_pin_no = UART_TX_DISABLED;
-		uart_init();
-		gps_init();
-		nrf_gpio_cfg_default(UART_TX);
-	}
-}
-
 static void uart_send_buffer(unsigned char *data, unsigned int len) {
 	for (int i = 0;i < len;i++) {
 		app_uart_put(data[i]);
 	}
-}
-
-void rfhelp_send_data_crc(uint8_t *data, unsigned int len) {
-	uint8_t buffer[len + 2];
-	unsigned short crc = crc16((unsigned char*)data, len);
-	memcpy(buffer, data, len);
-	buffer[len] = (char)(crc >> 8);
-	buffer[len + 1] = (char)(crc & 0xFF);
-	//TODO: esb_timeslot_set_next_packet(buffer, len + 2);
 }
 
 static void ble_send_buffer(unsigned char *data, unsigned int len) {
@@ -938,20 +907,8 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	}
 
 	// Finish packet processing
-	if (data[0] == COMM_EXT_NRF_ESB_SET_CH_ADDR) {
-		NRF_LOG_INFO("esb_timeslot_set_ch_addr 0x%02x", data[1]);
-		NRF_LOG_FLUSH();
-	} else if (data[0] == COMM_EXT_NRF_ESB_SEND_DATA) {
-		//Send data to the user's remote
-		rfhelp_send_data_crc(data + 1, len - 1);
-	} else if (data[0] == COMM_EXT_NRF_SET_ENABLED) {
-		NRF_LOG_INFO("comm_ext_nrf_set_enabled");
-		NRF_LOG_FLUSH();
-		set_enabled(data[1]);
-	} else {
-		if (m_is_enabled) {
-			packet_send_packet(data, len, PACKET_BLE);
-		}
+	if (m_is_enabled) {
+		packet_send_packet(data, len, PACKET_BLE);
 	}
 }
 
@@ -998,18 +955,6 @@ static void packet_timer_handler(void *p_context) {
 		m_other_comm_disable_time--;
 	}
 	CRITICAL_REGION_EXIT();
-}
-
-static void nrf_timer_handler(void *p_context) {
-	(void)p_context;
-
-	if (m_other_comm_disable_time == 0) {
-		uint8_t buffer[1];
-		buffer[0] = COMM_EXT_NRF_PRESENT;
-		CRITICAL_REGION_ENTER();
-		packet_send_packet(buffer, 1, PACKET_VESC);
-		CRITICAL_REGION_EXIT();
-	}
 }
 
 static void logging_timer_handler(void *p_context) {
@@ -1685,17 +1630,11 @@ int main(void) {
 	conn_params_init();
 	command_interface_init(&ble_send_logbuffer, &lfs);
 
-
-	(void)set_enabled;
-
 	packet_init(uart_send_buffer, process_packet_vesc, PACKET_VESC);
 	packet_init(ble_send_buffer, process_packet_ble, PACKET_BLE);
 
 	app_timer_create(&m_packet_timer, APP_TIMER_MODE_REPEATED, packet_timer_handler);
 	app_timer_start(m_packet_timer, APP_TIMER_TICKS(1), NULL);
-
-	app_timer_create(&m_nrf_timer, APP_TIMER_MODE_REPEATED, nrf_timer_handler);
-	app_timer_start(m_nrf_timer, APP_TIMER_TICKS(1000), NULL);
 
 	app_timer_create(&m_logging_timer, APP_TIMER_MODE_REPEATED, logging_timer_handler);
 	app_timer_start(m_logging_timer, APP_TIMER_TICKS(1000), NULL);
