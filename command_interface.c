@@ -165,10 +165,6 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_INFO("filepath %s", filepath);
             NRF_LOG_FLUSH();
 
-            //TODO: testing un-mount to fix random hangs. Might not be necessary
-            lfs_unmount( m_lfs );
-            lfs_mount(m_lfs, &cfg);
-
             int remove_response = lfs_remove(m_lfs,filepath);
             NRF_LOG_INFO("lfs_remove():remove_response: %d", remove_response);
             NRF_LOG_FLUSH();
