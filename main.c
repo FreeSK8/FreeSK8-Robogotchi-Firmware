@@ -939,8 +939,20 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	}
 
 	// Finish packet processing
-	if (m_is_enabled) {
-		packet_send_packet(data, len, PACKET_BLE);
+	if (data[0] == COMM_EXT_NRF_ESB_SET_CH_ADDR) {
+		//NRF_LOG_INFO("COMM_EXT_NRF_ESB_SET_CH_ADDR 0x%02x", data[1]);
+		//NRF_LOG_FLUSH();
+	} else if (data[0] == COMM_EXT_NRF_ESB_SEND_DATA) {
+		//Send data to the user's remote
+		//NRF_LOG_INFO("COMM_EXT_NRF_ESB_SEND_DATA");
+		//NRF_LOG_FLUSH();
+	} else if (data[0] == COMM_EXT_NRF_SET_ENABLED) {
+		//NRF_LOG_INFO("COMM_EXT_NRF_SET_ENABLED");
+		//NRF_LOG_FLUSH();
+	} else {
+		if (m_is_enabled) {
+			packet_send_packet(data, len, PACKET_BLE);
+		}
 	}
 }
 

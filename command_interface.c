@@ -204,7 +204,7 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
         {
-            sprintf((char *)command_response_buffer, "getcfg,%hd,%0.2f,%0.2f,%hhd,%hhd,%hhd,%hhd,%hhd,%hhd,%ld,%ld",
+            sprintf((char *)command_response_buffer, "getcfg,%d,%0.2f,%0.2f,%d,%d,%d,%d,%d,%d,%ld,%ld",
                 gotchi_cfg_user.log_auto_stop_idle_time,
                 gotchi_cfg_user.log_auto_stop_low_voltage,
                 gotchi_cfg_user.log_auto_start_duty_cycle,
