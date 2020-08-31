@@ -1309,20 +1309,34 @@ void littlefs_init()
 void user_cfg_set(void)
 {
 	NRF_LOG_INFO("Saving User Configuration");
+	NRF_LOG_FLUSH();
 	lfs_file_open(&lfs, &file, "user_configuration", LFS_O_RDWR | LFS_O_CREAT);
-	lfs_file_read(&lfs, &file, &gotchi_cfg_user, sizeof(gotchi_cfg_user));
+	lfs_file_write(&lfs, &file, &gotchi_cfg_user, sizeof(gotchi_cfg_user));
+	lfs_file_close(&lfs, &file);
 	NRF_LOG_INFO("User Configuration Saved");
+	NRF_LOG_FLUSH();
 }
 
 void user_cfg_get(void)
 {
 	NRF_LOG_INFO("Loading User Configuration");
-	lfs_file_open(&lfs, &file, "user_configuration", LFS_O_RDONLY);
-	lfs_file_read(&lfs, &file, &gotchi_cfg_user, sizeof(gotchi_cfg_user));
-	NRF_LOG_INFO("User Configuration Loaded");
+	NRF_LOG_FLUSH();
+
+	struct lfs_info info;
+	lfs_stat(&lfs, "user_configuration", &info);
+	if (info.size >= sizeof(gotchi_cfg_user))
+	{
+		lfs_file_open(&lfs, &file, "user_configuration", LFS_O_RDONLY);
+		lfs_file_read(&lfs, &file, &gotchi_cfg_user, sizeof(gotchi_cfg_user));
+		lfs_file_close(&lfs, &file);
+		NRF_LOG_INFO("User Configuration Loaded");
+		NRF_LOG_FLUSH();
+	}
+
 	if (gotchi_cfg_user.cfg_version != gotchi_cfg_default.cfg_version)
 	{
 		NRF_LOG_WARNING("User Configuration Version Mismatch. Restoring Defaults");
+		NRF_LOG_FLUSH();
 		gotchi_cfg_user = gotchi_cfg_default;
 		user_cfg_set();
 	}
