@@ -176,9 +176,6 @@ uint16_t lfs_file_count = 0;
 static lfs_t lfs;
 static lfs_file_t file;
 
-
-
-
 // configuration of the filesystem is provided by this struct
 const struct lfs_config cfg = {
     // block device operations
@@ -198,6 +195,40 @@ const struct lfs_config cfg = {
 };
 
 ///////////////////
+
+void user_cfg_set(void);
+void user_cfg_get(void);
+#include "user_cfg.h"
+
+const struct gotchi_configuration gotchi_cfg_default = {
+	.log_auto_stop_idle_time = 300,
+	.log_auto_stop_low_voltage = 20.0,
+	.log_auto_start_duty_cycle = 0.01,
+	.log_interval_hz = 1,
+
+	.multi_esc_mode = 0,
+	.multi_esc_ids = {0,0,0,0},
+
+	.gps_baud_rate = NRF_UARTE_BAUDRATE_9600,
+
+	.cfg_version = 1
+};
+
+struct gotchi_configuration gotchi_cfg_user = {
+	.log_auto_stop_idle_time = 300,
+	.log_auto_stop_low_voltage = 20.0,
+	.log_auto_start_duty_cycle = 0.01,
+	.log_interval_hz = 1,
+
+	.multi_esc_mode = 0,
+	.multi_esc_ids = {0,0,0,0},
+
+	.gps_baud_rate = NRF_UARTE_BAUDRATE_9600,
+
+	.cfg_version = 0
+};
+
+//////////////////
 
 #ifndef MODULE_BUILTIN
 #define MODULE_BUILTIN					0
@@ -727,6 +758,7 @@ static void uart_init(void) {
 }
 static void gps_init(void) {
 	uint32_t err_code;
+	m_gpsuart_comm_params.baud_rate = gotchi_cfg_user.gps_baud_rate;
 	GPS_UART_FIFO_INIT(&m_gpsuart_comm_params,
 			UART_RX_BUF_SIZE,
 			64,
@@ -881,25 +913,25 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	// Watch telemetry data to trigger logging
 	// If we are logging now see if we should stop
 	if (log_file_active) {
-		if(esc_telemetry.v_in < 14.0) { //TODO: Specify appropriate low voltage detection limit
+		if(esc_telemetry.v_in < gotchi_cfg_user.log_auto_stop_low_voltage) {
 			log_file_stop();
 			beep_speaker(50,50);
 			NRF_LOG_INFO("Logging stopped due to power drop");
 			NRF_LOG_FLUSH();
 			send_status_packet();
-		} else if (currentTime - lastTimeBoardMoved > 60) { //TODO: Specify appropriate duration to auto stop logging
+		} else if (currentTime - lastTimeBoardMoved > gotchi_cfg_user.log_auto_stop_idle_time) {
 			log_file_stop();
 			NRF_LOG_INFO("Logging stopped due to inactivity");
 			NRF_LOG_FLUSH();
 			beep_speaker(50,50);
 			send_status_packet();
-		} else if (fabs(esc_telemetry.duty_now) > 0.01) { //TODO: Specify appropriate minimum duty cycle to initiate logging
+		} else if (fabs(esc_telemetry.duty_now) > gotchi_cfg_user.log_auto_start_duty_cycle) {
 			// We are moving while logging. Keep it up!
 			lastTimeBoardMoved = currentTime;
 		}
 	}
 	// We are not logging, see if we should start
-	else if (fabs(esc_telemetry.duty_now) > 0.01) { //TODO: Specify appropriate minimum duty cycle to initiate logging
+	else if (fabs(esc_telemetry.duty_now) > gotchi_cfg_user.log_auto_start_duty_cycle) {
 		log_file_start();
 		NRF_LOG_INFO("Logging started automatically");
 		NRF_LOG_FLUSH();
@@ -993,9 +1025,24 @@ static void logging_timer_handler(void *p_context) {
 		}
 	}
 
-	static unsigned char telemetryPacket[] = {0x02, 0x01, 0x04, 0x40, 0x84, 0x03};
-	uart_send_buffer(telemetryPacket, 6);
+	// Requesting ESC telemetry
+	static unsigned char telemetryPacket[] = {0x02, 0x01, COMM_GET_VALUES, 0x40, 0x84, 0x03};
+	switch (gotchi_cfg_user.multi_esc_mode)
+	{
+		case 2:
+			//TODO: request from next ESC
+			uart_send_buffer(telemetryPacket, 6);
+		break;
+		case 4:
+			//TODO: request from next ESC
+			uart_send_buffer(telemetryPacket, 6);
+		break;
+		default:
+			// Request from single ESC only
+			uart_send_buffer(telemetryPacket, 6);
+	}
 
+	// Sync filesystem contents every 60 seconds
 	if (log_file_active && currentTime % 60 == 0)
 	{
 		lfs_file_sync(&lfs, &file);
@@ -1082,7 +1129,7 @@ static void configure_memory()
 
 }
 
-void qspiInit()
+void qspi_init()
 {
 	uint32_t err_code=0;
 
@@ -1165,7 +1212,7 @@ void update_status_packet(char * buffer)
 }
 
 
-void littlefsInit()
+void littlefs_init()
 {
 	NRF_LOG_INFO("LittleFS initializing");
     NRF_LOG_FLUSH();
@@ -1178,8 +1225,10 @@ void littlefsInit()
 	if (err) {
         NRF_LOG_WARNING("LittleFS needs to format the storage");
         NRF_LOG_FLUSH();
-        lfs_format(&lfs, &cfg);
-        lfs_mount(&lfs, &cfg);
+        int lfs_format_response = lfs_format(&lfs, &cfg);
+        int lfs_mount_response = lfs_mount(&lfs, &cfg);
+		NRF_LOG_WARNING("LittleFS format (%d) and mount (%d) completed", lfs_format_response, lfs_mount_response);
+		user_cfg_set();
     }
     NRF_LOG_INFO("LittleFS initialized");
     NRF_LOG_FLUSH();
@@ -1256,6 +1305,28 @@ void littlefsInit()
 }
 
 /////////////////////
+
+void user_cfg_set(void)
+{
+	NRF_LOG_INFO("Saving User Configuration");
+	lfs_file_open(&lfs, &file, "user_configuration", LFS_O_RDWR | LFS_O_CREAT);
+	lfs_file_read(&lfs, &file, &gotchi_cfg_user, sizeof(gotchi_cfg_user));
+	NRF_LOG_INFO("User Configuration Saved");
+}
+
+void user_cfg_get(void)
+{
+	NRF_LOG_INFO("Loading User Configuration");
+	lfs_file_open(&lfs, &file, "user_configuration", LFS_O_RDONLY);
+	lfs_file_read(&lfs, &file, &gotchi_cfg_user, sizeof(gotchi_cfg_user));
+	NRF_LOG_INFO("User Configuration Loaded");
+	if (gotchi_cfg_user.cfg_version != gotchi_cfg_default.cfg_version)
+	{
+		NRF_LOG_WARNING("User Configuration Version Mismatch. Restoring Defaults");
+		gotchi_cfg_user = gotchi_cfg_default;
+		user_cfg_set();
+	}
+}
 
 void pwm_init(void)  
 {
@@ -1514,6 +1585,7 @@ void spi_event_handler(nrf_drv_spi_evt_t const * p_event,
     }
 }
 
+//TODO: remove SPI if not in use
 void spi_init(void)
 {
 	nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
@@ -1543,6 +1615,7 @@ void spi_init(void)
         nrf_delay_ms(200);
     }
 }
+
 int main(void) {
 
 	nrf_gpio_cfg_input(PIN_BUTTON,NRF_GPIO_PIN_PULLUP);
@@ -1563,24 +1636,22 @@ int main(void) {
 	app_usbd_class_append(class_cdc_acm);
 #endif
 
-////////////////////////////
-	// Test piezo
+	// Initialize PWM for piezo output
 	pwm_init();
-	beep_speaker(75,50); //Play tone blocking, allows time for OLED to init
+	beep_speaker(75,50); //Play tone blocking, allowing time for OLED to init
 
-	// Init I2C
+	// Init I2C for RTC and OLED
 	ret_code_t err_code = twi_master_init();
 	APP_ERROR_CHECK(err_code);
 
-///////////////////Display test
 #if HAS_DISPLAY
 
-	SSD1306_begin(SSD1306_SWITCHCAPVCC, 0x3C, false); //Note, display needs few ms before it can talk
+	//NOTE: display needs few ms before it will respond from cold boot
+	SSD1306_begin(SSD1306_SWITCHCAPVCC, 0x3C, false);
 	Adafruit_GFX_init(SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT, SSD1306_drawPixel);
 
 	SSD1306_clearDisplay();
 	SSD1306_display();
-
 
 	char freetitle[] = "FreeSK8";
 	Adafruit_GFX_setTextSize(1);
@@ -1590,7 +1661,6 @@ int main(void) {
 
 #endif
 
-////////////////////////////
 	// Allocate tmTime in memory
 	time ( &currentTime );
 	tmTime = localtime ( &currentTime );
@@ -1599,24 +1669,24 @@ int main(void) {
 	// Get the current time from the RTC
 	rtc_get_time();
 
-////////////////////////////
 #if HAS_DISPLAY
 	if(isButtonPressed)
 	{
 		play_game();
 	}
 #endif
-////////////////////////////
 
-	//QSPI Testing
-	qspiInit();
-	littlefsInit();
+	// QSPI & LittleFS filesystem initilization
+	qspi_init();
+	littlefs_init();
 
-/////////////////////////////
+	// Load the user configuration from filesystem
+	user_cfg_get();
 
+	// Init GPS after user configuration are loaded
 	gps_init();
-	spi_init();
-	// Turn off LED during boot
+
+	// Turn off LED when robogotchi specific init is complete
 	nrf_gpio_pin_clear(LED_PIN);
 
 	uart_init();
@@ -1638,6 +1708,8 @@ int main(void) {
 
 	app_timer_create(&m_logging_timer, APP_TIMER_MODE_REPEATED, logging_timer_handler);
 	app_timer_start(m_logging_timer, APP_TIMER_TICKS(1000), NULL);
+
+	//TODO: setup timer to request ESC data at user's configured interval
 
 #ifdef NRF52840_XXAA
 	app_usbd_power_events_enable();
