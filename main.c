@@ -199,7 +199,7 @@ const struct lfs_config cfg = {
 void user_cfg_set(void);
 void user_cfg_get(void);
 #include "user_cfg.h"
-
+static int multiESCIndex = 0;
 const struct gotchi_configuration gotchi_cfg_default = {
 	.log_auto_stop_idle_time = 300,
 	.log_auto_stop_low_voltage = 20.0,
@@ -1039,15 +1039,65 @@ static void logging_timer_handler(void *p_context) {
 
 	// Requesting ESC telemetry
 	static unsigned char telemetryPacket[] = {0x02, 0x01, COMM_GET_VALUES, 0x40, 0x84, 0x03};
+	static unsigned char telemetryPacketCAN[] = {0x02, 0x03, COMM_FORWARD_CAN, 0x00, COMM_GET_VALUES, 0x00, 0x00, 0x03};
+	static uint16_t crc;
 	switch (gotchi_cfg_user.multi_esc_mode)
 	{
-		case 2:
-			//TODO: request from next ESC
-			uart_send_buffer(telemetryPacket, 6);
+		case 2: //Dual ESC Mode (1 CAN FWD)
+			NRF_LOG_INFO("Dual ESC Mode"); NRF_LOG_FLUSH();
+			switch (multiESCIndex++)
+			{
+				case 0:
+					NRF_LOG_INFO("requesting esc values locally"); NRF_LOG_FLUSH();
+					uart_send_buffer(telemetryPacket, 6);
+				break;
+				case 1:
+					NRF_LOG_INFO("requesting esc values over can"); NRF_LOG_FLUSH();
+					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[0];
+					crc = crc16(telemetryPacketCAN + 2, 3);
+					telemetryPacketCAN[5] = crc >> 8;
+					telemetryPacketCAN[6] = crc & 0xff;
+					uart_send_buffer(telemetryPacketCAN, 8);
+					multiESCIndex = 0; // Reset cycle
+				break;
+				default:
+					multiESCIndex = 0; // Config switched, reset
+				break;
+			}
 		break;
 		case 4:
-			//TODO: request from next ESC
-			uart_send_buffer(telemetryPacket, 6);
+			NRF_LOG_INFO("Quad ESC Mode"); NRF_LOG_FLUSH();
+			switch (multiESCIndex++)
+			{
+				case 0:
+					uart_send_buffer(telemetryPacket, 6);
+				break;
+				case 1:
+					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[0];
+					crc = crc16(telemetryPacketCAN + 2, 3);
+					telemetryPacketCAN[5] = crc >> 8;
+					telemetryPacketCAN[6] = crc & 0xff;
+					uart_send_buffer(telemetryPacketCAN, 8);
+				break;
+				case 2:
+					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[1];
+					crc = crc16(telemetryPacketCAN + 2, 3);
+					telemetryPacketCAN[5] = crc >> 8;
+					telemetryPacketCAN[6] = crc & 0xff;
+					uart_send_buffer(telemetryPacketCAN, 8);
+				break;
+				case 3:
+					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[2];
+					crc = crc16(telemetryPacketCAN + 2, 3);
+					telemetryPacketCAN[5] = crc >> 8;
+					telemetryPacketCAN[6] = crc & 0xff;
+					uart_send_buffer(telemetryPacketCAN, 8);
+					multiESCIndex = 0; // Reset cycle
+				break;
+				default:
+					multiESCIndex = 0;
+				break;
+			}
 		break;
 		default:
 			// Request from single ESC only
