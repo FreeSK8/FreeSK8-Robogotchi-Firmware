@@ -323,6 +323,7 @@ struct gotchi_configuration gotchi_cfg_user = {
 // Private variables
 APP_TIMER_DEF(m_packet_timer);
 APP_TIMER_DEF(m_logging_timer);
+APP_TIMER_DEF(m_telemetry_timer);
 
 BLE_FUS_DEF(m_fus, NRF_SDH_BLE_TOTAL_LINK_COUNT);								   /**< BLE FUS service instance. */
 NRF_BLE_GATT_DEF(m_gatt);														   /**< GATT module instance. */
@@ -1004,9 +1005,6 @@ static void packet_timer_handler(void *p_context) {
 static void logging_timer_handler(void *p_context) {
 	(void)p_context;
 
-	// Set flag to write 1Hz data
-	write_logdata_now = true;
-
 	// Increment time by 1 second as this is called at 1Hz
 	currentTime++;
 	tmTime = localtime( &currentTime );
@@ -1036,6 +1034,18 @@ static void logging_timer_handler(void *p_context) {
 			NRF_LOG_FLUSH();
 		}
 	}
+
+	// Sync filesystem contents every 60 seconds
+	if (log_file_active && currentTime % 60 == 0)
+	{
+		lfs_file_sync(&lfs, &file);
+	}
+}
+
+static void telemetry_timer_handler(void *p_context) {
+	(void)p_context;
+	// Set flag to write data when a response is received
+	write_logdata_now = true;
 
 	// Requesting ESC telemetry
 	static unsigned char telemetryPacket[] = {0x02, 0x01, COMM_GET_VALUES, 0x40, 0x84, 0x03};
@@ -1102,12 +1112,6 @@ static void logging_timer_handler(void *p_context) {
 		default:
 			// Request from single ESC only
 			uart_send_buffer(telemetryPacket, 6);
-	}
-
-	// Sync filesystem contents every 60 seconds
-	if (log_file_active && currentTime % 60 == 0)
-	{
-		lfs_file_sync(&lfs, &file);
 	}
 }
 
@@ -1784,6 +1788,9 @@ int main(void) {
 
 	app_timer_create(&m_logging_timer, APP_TIMER_MODE_REPEATED, logging_timer_handler);
 	app_timer_start(m_logging_timer, APP_TIMER_TICKS(1000), NULL);
+
+	app_timer_create(&m_telemetry_timer, APP_TIMER_MODE_REPEATED, telemetry_timer_handler);
+	app_timer_start(m_telemetry_timer, APP_TIMER_TICKS(1000 / gotchi_cfg_user.log_interval_hz), NULL);
 
 	//TODO: setup timer to request ESC data at user's configured interval
 
