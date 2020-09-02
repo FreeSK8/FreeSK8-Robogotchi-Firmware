@@ -211,7 +211,7 @@ const struct gotchi_configuration gotchi_cfg_default = {
 
 	.gps_baud_rate = NRF_UARTE_BAUDRATE_9600,
 
-	.cfg_version = 1
+	.cfg_version = 1 //Expected configuration version
 };
 
 struct gotchi_configuration gotchi_cfg_user = {
