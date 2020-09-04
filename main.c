@@ -464,13 +464,76 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 	app_error_handler(DEAD_BEEF, line_num, p_file_name);
 }
 
+#include "peer_manager.h"
+#include "peer_manager_handler.h"
+#define SEC_PARAM_BOND              1                                   /**< Perform bonding. */
+#define SEC_PARAM_MITM              1                                   /**< Man In The Middle protection not required. */
+#define SEC_PARAM_LESC              0                                   /**< LE Secure Connections enabled. */
+#define SEC_PARAM_KEYPRESS          0                                   /**< Keypress notifications not enabled. */
+#define SEC_PARAM_IO_CAPABILITIES   BLE_GAP_IO_CAPS_DISPLAY_ONLY                /**< No I/O capabilities. */
+#define SEC_PARAM_OOB               0                                   /**< Out Of Band data not available. */
+#define SEC_PARAM_MIN_KEY_SIZE      7                                   /**< Minimum encryption key size in octets. */
+#define SEC_PARAM_MAX_KEY_SIZE      16                                  /**< Maximum encryption key size in octets. */
+
+/**@brief Function for handling Peer Manager events.
+ *
+ * @param[in] p_evt  Peer Manager event.
+ */
+static void pm_evt_handler(pm_evt_t const * p_evt)
+{
+    pm_handler_on_pm_evt(p_evt);
+    pm_handler_flash_clean(p_evt);
+
+    switch (p_evt->evt_id)
+    {
+        case PM_EVT_PEERS_DELETE_SUCCEEDED:
+            // Bonds are deleted. Start scanning.
+            //scan_start();
+            break;
+
+        default:
+            break;
+    }
+}
+ble_gap_sec_params_t sec_param;
+static void peer_manager_init(void)
+{
+    ret_code_t err_code;
+
+    err_code = pm_init();
+    APP_ERROR_CHECK(err_code);
+
+    memset(&sec_param, 0, sizeof(ble_gap_sec_params_t));
+
+    // Security parameters to be used for all security procedures.
+    sec_param.bond           = SEC_PARAM_BOND;
+    sec_param.mitm           = SEC_PARAM_MITM;
+    sec_param.lesc           = SEC_PARAM_LESC;
+    sec_param.keypress       = SEC_PARAM_KEYPRESS;
+    sec_param.io_caps        = SEC_PARAM_IO_CAPABILITIES;
+    sec_param.oob            = SEC_PARAM_OOB;
+    sec_param.min_key_size   = SEC_PARAM_MIN_KEY_SIZE;
+    sec_param.max_key_size   = SEC_PARAM_MAX_KEY_SIZE;
+    sec_param.kdist_own.enc  = 1;
+    sec_param.kdist_own.id   = 1;
+    sec_param.kdist_peer.enc = 1;
+    sec_param.kdist_peer.id  = 1;
+
+    err_code = pm_sec_params_set(&sec_param);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = pm_register(pm_evt_handler);
+    APP_ERROR_CHECK(err_code);
+}
+
 static void gap_params_init(void)
 {
 	uint32_t				err_code;
 	ble_gap_conn_params_t   gap_conn_params;
 	ble_gap_conn_sec_mode_t sec_mode;
 
-	BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
+	//BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
+	BLE_GAP_CONN_SEC_MODE_SET_ENC_WITH_MITM(&sec_mode);
 
 	err_code = sd_ble_gap_device_name_set(&sec_mode,
 			(const uint8_t *) DEVICE_NAME,
@@ -614,6 +677,14 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt) {
 	}
 }
 
+static void passkey_init(void)
+{
+	uint8_t passkey[] = "123456";
+	ble_opt_t ble_opt;
+	ble_opt.gap_opt.passkey.p_passkey = &passkey[0];
+	(void) sd_ble_opt_set(BLE_GAP_OPT_PASSKEY, &ble_opt);
+}
+
 
 /**@brief Function for handling BLE events.
  *
@@ -621,6 +692,8 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt) {
  * @param[in]   p_context   Unused.
  */
 static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
+	static ble_gap_sec_keyset_t s_sec_keyset;
+
 	switch (p_ble_evt->header.evt_id) {
 	case BLE_GAP_EVT_CONNECTED:
 		nrf_gpio_pin_set(LED_PIN);
@@ -645,7 +718,18 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
 
 	case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
 		// Pairing not supported
-		sd_ble_gap_sec_params_reply(m_conn_handle, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP, NULL, NULL);
+		//sd_ble_gap_sec_params_reply(m_conn_handle, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP, NULL, NULL);
+		/*
+		s_sec_keyset.keys_peer.p_enc_key  = NULL;
+            s_sec_keyset.keys_peer.p_id_key   = NULL;
+            s_sec_keyset.keys_peer.p_sign_key = NULL;
+            uint32_t err_code                          = sd_ble_gap_sec_params_reply(m_conn_handle,
+                                                                            BLE_GAP_SEC_STATUS_SUCCESS,
+                                                                            &sec_param,
+                                                                            &s_sec_keyset);
+            APP_ERROR_CHECK(err_code);
+			*/
+		smd_ble_evt_handler(p_ble_evt);
 		break;
 
 	case BLE_GATTS_EVT_SYS_ATTR_MISSING:
@@ -1257,6 +1341,7 @@ void log_file_start()
 		NRF_LOG_INFO("log_file_active");
 		NRF_LOG_FLUSH();
 		log_file_active = true;
+		multiESCIndex = 0; // Always request from primary ESC first
 		++lfs_file_count;
 		display_file_count();
 #if HAS_DISPLAY
@@ -1774,7 +1859,10 @@ int main(void) {
 	nrf_pwr_mgmt_init();
 	ble_stack_init();
 	gap_params_init();
+	passkey_init();
 	gatt_init();
+	peer_manager_init();
+	pm_peers_delete();
 	services_init();
 	advertising_init();
 	conn_params_init();
