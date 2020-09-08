@@ -746,6 +746,7 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt) {
 		break;
 	case BLE_ADV_EVT_IDLE:
 //		sleep_mode_enter();
+		advertising_start(false);
 		break;
 	default:
 		break;
@@ -1946,6 +1947,8 @@ int main(void) {
 
 	// NRF LOG Init
 	log_init();
+	NRF_LOG_INFO("DEVICEID0: %08X", NRF_FICR->DEVICEID[0]);
+	NRF_LOG_INFO("DEVICEID1: %08X", NRF_FICR->DEVICEID[1]);
 
 	// QSPI & LittleFS filesystem initilization
 	qspi_init();
