@@ -1991,7 +1991,7 @@ int main(void) {
 	app_usbd_power_events_enable();
 #endif
 
-	advertising_start(true); //TODO: erase bonds based on user button input (bye bye game?)
+	advertising_start(false); //TODO: erase bonds based on user button input (bye bye game?)
 
 	for (;;) {
 #ifdef NRF52840_XXAA
