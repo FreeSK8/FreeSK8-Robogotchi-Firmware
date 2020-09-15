@@ -532,6 +532,10 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                              p_evt->conn_handle,
                              p_evt->params.conn_sec_succeeded.procedure);
 				is_connection_secure = true;
+				// Notify user connection successful
+				Adafruit_GFX_setCursor(65, 0);
+				Adafruit_GFX_print("BLE OK");
+				update_display = true;
             }
             else
             {
@@ -547,6 +551,10 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
 
         case PM_EVT_CONN_SEC_FAILED:
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
+			// Notify user connection failed
+			Adafruit_GFX_setCursor(65, 0);
+			Adafruit_GFX_print("BLEPIN");
+			update_display = true;
             break;
 
         case PM_EVT_PEERS_DELETE_SUCCEEDED:
@@ -1900,9 +1908,9 @@ void process_user_input()
 		if (isButtonPressed) duration_button_pressed += 25;
 	}
 	// If user held button for 5 seconds we clear all bonds
-	if (duration_button_pressed > 5000 && !is_connection_secure)
+	if (duration_button_pressed > 5000 && m_conn_handle == BLE_CONN_HANDLE_INVALID)
 	{
-		NRF_LOG_WARNING("User held button for 5 seconds without a secure connection");
+		NRF_LOG_WARNING("User held button for 5 seconds without a BLE connection");
 		duration_button_pressed = 0;
 		//TODO: Consider asking for another button press within X milliseconds to confirm clearing
 		sd_ble_gap_adv_stop(m_advertising.adv_handle);
