@@ -480,12 +480,14 @@ static pm_peer_id_t m_peer_to_be_deleted = PM_PEER_ID_INVALID;
 
 #define PASSKEY_LENGTH              6                                   /**< Length of pass-key received by the stack for display. */
 
-static void passkey_init(void)
+static void passkey_init(uint32_t ble_pin)
 {
-	uint8_t passkey[] = "123456";
+	char passkey[6];
+	itoa(ble_pin, passkey, 10);
 	ble_opt_t ble_opt;
-	ble_opt.gap_opt.passkey.p_passkey = &passkey[0];
+	ble_opt.gap_opt.passkey.p_passkey = (uint8_t*)&passkey[0];
 	(void)sd_ble_opt_set(BLE_GAP_OPT_PASSKEY, &ble_opt);
+	NRF_LOG_INFO("BLE GAP PASSKEY: %s", passkey);
 }
 
 /**@brief Clear bond information from persistent storage.
@@ -1012,6 +1014,7 @@ static void process_packet_ble(unsigned char *data, unsigned int len) {
 	if(!is_connection_secure) {
 		NRF_LOG_INFO("Connection is not yet secure. Sorry. I can't help you at this time.");
 		NRF_LOG_FLUSH();
+		//TODO: send response to device that ble is not secure? or check on device if connection has been secured?
 		return;
 	}
 
@@ -1885,6 +1888,51 @@ void spi_init(void)
     }
 }
 
+char ble_pin[7] = {0};
+uint16_t duration_button_pressed = 0;
+bool is_pin_displayed = false;
+void process_user_input()
+{
+	// Check if user if pressing the button while we do not have an active connection
+	if (isButtonPressed && !is_connection_secure)
+	{
+		nrf_delay_ms(25);
+		if (isButtonPressed) duration_button_pressed += 25;
+	}
+	// If user held button for 5 seconds we clear all bonds
+	if (duration_button_pressed > 5000 && !is_connection_secure)
+	{
+		NRF_LOG_WARNING("User held button for 5 seconds without a secure connection");
+		duration_button_pressed = 0;
+		//TODO: Consider asking for another button press within X milliseconds to confirm clearing
+		sd_ble_gap_adv_stop(m_advertising.adv_handle);
+		advertising_start(true);
+		// Notify user
+		Adafruit_GFX_setCursor(65, 0);
+		Adafruit_GFX_print("CLEARD");
+		update_display = true;
+	}
+	// If user pressed button for less than 5 seconds display the PIN code
+	if (duration_button_pressed > 0 && !isButtonPressed)
+	{
+		duration_button_pressed = 0;
+		if (is_pin_displayed)
+		{
+			is_pin_displayed = false;
+			Adafruit_GFX_setCursor(64, 0);
+			Adafruit_GFX_print("      ");
+		}
+		else
+		{
+			is_pin_displayed = true;
+			Adafruit_GFX_setCursor(64, 0);
+			Adafruit_GFX_print(ble_pin);
+		}
+
+		update_display = true;
+	}
+}
+
 int main(void) {
 
 	nrf_gpio_cfg_input(PIN_BUTTON,NRF_GPIO_PIN_PULLUP);
@@ -1947,8 +1995,19 @@ int main(void) {
 
 	// NRF LOG Init
 	log_init();
+
+	// BLE PIN CODE
 	NRF_LOG_INFO("DEVICEID0: %08X", NRF_FICR->DEVICEID[0]);
 	NRF_LOG_INFO("DEVICEID1: %08X", NRF_FICR->DEVICEID[1]);
+	uint32_t ble_bondage_safe_word = (NRF_FICR->DEVICEID[0] +  NRF_FICR->DEVICEID[1]) % 999999;
+	if (ble_bondage_safe_word < 100000)
+	{
+		NRF_LOG_WARNING("Computed PIN was 5 digits");
+		ble_bondage_safe_word += 100000;
+	}
+	NRF_LOG_INFO("PIN CODE %d", ble_bondage_safe_word);
+	// Store PIN for Display
+	itoa(ble_bondage_safe_word, ble_pin, 10);
 
 	// QSPI & LittleFS filesystem initilization
 	qspi_init();
@@ -1968,7 +2027,7 @@ int main(void) {
 	nrf_pwr_mgmt_init();
 	ble_stack_init();
 	gap_params_init();
-	passkey_init();
+	passkey_init(ble_bondage_safe_word);
 	gatt_init();
 	services_init();
 	advertising_init();
@@ -1994,12 +2053,15 @@ int main(void) {
 	app_usbd_power_events_enable();
 #endif
 
-	advertising_start(false); //TODO: erase bonds based on user button input (bye bye game?)
+	advertising_start(false);
 
 	for (;;) {
 #ifdef NRF52840_XXAA
 		while (app_usbd_event_queue_process()){}
 #endif
+
+		// Monitor button press; Do not block for more than 25ms
+		process_user_input();
 
 		if (m_uart_error) {
 			app_uart_close();
