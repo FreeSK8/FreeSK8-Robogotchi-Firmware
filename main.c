@@ -1997,8 +1997,6 @@ int main(void) {
 	log_init();
 
 	// BLE PIN CODE
-	NRF_LOG_INFO("DEVICEID0: %08X", NRF_FICR->DEVICEID[0]);
-	NRF_LOG_INFO("DEVICEID1: %08X", NRF_FICR->DEVICEID[1]);
 	uint32_t ble_bondage_safe_word = (NRF_FICR->DEVICEID[0] +  NRF_FICR->DEVICEID[1]) % 999999;
 	if (ble_bondage_safe_word < 100000)
 	{
