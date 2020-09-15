@@ -1212,11 +1212,19 @@ static void logging_timer_handler(void *p_context) {
 		datetimestring[i] = dt_string[i];
 	}
 
+	// Print debugging information
 	char debug_buff[196] = {0};
 	sprintf(debug_buff, "1Hz: %s, GPS: Valid %d, Fix %d, Mode %d, Lat %f Lon %f, SatInView %d, Seconds %d", datetimestring, hgps.is_valid, hgps.fix, hgps.fix_mode, hgps.latitude, hgps.longitude, hgps.sats_in_view, hgps.seconds);
 	NRF_LOG_INFO("%s", debug_buff);
 	NRF_LOG_FLUSH();
 
+	// Write GPS seconds to display
+	Adafruit_GFX_setCursor(65,8);
+	sprintf(display_text_buffer,"GPS %02d S%d%d", hgps.seconds, hgps.is_valid, hgps.fix);
+	Adafruit_GFX_print(display_text_buffer);
+	update_display = true;
+
+	// If logging is active and GPS is valid and fixed log GPS data
 	if (log_file_active && hgps.is_valid && hgps.fix > 0)
 	{
 		static char position_buffer[128]; //TODO: consolidate values and position buffers
@@ -1315,7 +1323,7 @@ void display_file_count(void)
 	NRF_LOG_FLUSH();
 #if HAS_DISPLAY
 	Adafruit_GFX_setCursor(0,8);
-	sprintf(display_text_buffer,"FS ready: %d files   ", lfs_file_count);
+	sprintf(display_text_buffer,"%d files   ", lfs_file_count);
 	Adafruit_GFX_print(display_text_buffer);
 	update_display = true;
 #endif
@@ -1560,9 +1568,7 @@ void littlefs_init()
 	NRF_LOG_FLUSH();
 
 #if HAS_DISPLAY
-	Adafruit_GFX_setCursor(0,8);
-	sprintf(display_text_buffer,"FS ready: %d files", lfs_file_count);
-	Adafruit_GFX_print(display_text_buffer);
+	display_file_count();
 	Adafruit_GFX_setCursor(0,16);
 	sprintf(display_text_buffer,"Logging inactive");
 	Adafruit_GFX_print(display_text_buffer);
