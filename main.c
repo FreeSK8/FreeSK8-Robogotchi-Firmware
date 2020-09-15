@@ -533,7 +533,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                              p_evt->params.conn_sec_succeeded.procedure);
 				is_connection_secure = true;
 				// Notify user connection successful
-				Adafruit_GFX_setCursor(65, 0);
+				Adafruit_GFX_setCursor(64, 0);
 				Adafruit_GFX_print("BLE OK");
 				update_display = true;
             }
@@ -552,7 +552,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
         case PM_EVT_CONN_SEC_FAILED:
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
 			// Notify user connection failed
-			Adafruit_GFX_setCursor(65, 0);
+			Adafruit_GFX_setCursor(64, 0);
 			Adafruit_GFX_print("BLEPIN");
 			update_display = true;
             break;
@@ -1218,7 +1218,7 @@ static void logging_timer_handler(void *p_context) {
 	NRF_LOG_INFO("%s", debug_buff);
 	NRF_LOG_FLUSH();
 
-	// Write GPS seconds to display
+	// Write GPS status to display
 	Adafruit_GFX_setCursor(65,8);
 	sprintf(display_text_buffer,"GPS %02d S%d%d", hgps.seconds, hgps.is_valid, hgps.fix);
 	Adafruit_GFX_print(display_text_buffer);
@@ -1922,7 +1922,7 @@ void process_user_input()
 		sd_ble_gap_adv_stop(m_advertising.adv_handle);
 		advertising_start(true);
 		// Notify user
-		Adafruit_GFX_setCursor(65, 0);
+		Adafruit_GFX_setCursor(64, 0);
 		Adafruit_GFX_print("CLEARD");
 		update_display = true;
 	}
