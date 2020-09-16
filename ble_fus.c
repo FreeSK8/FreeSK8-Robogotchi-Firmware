@@ -96,7 +96,7 @@ static void on_connect(ble_fus_t * p_fus, ble_evt_t const * p_ble_evt)
     gatts_val.offset  = 0;
 
     err_code = sd_ble_gatts_value_get(p_ble_evt->evt.gap_evt.conn_handle,
-                                      p_fus->rx_handles.cccd_handle,
+                                      p_fus->tx_handles.cccd_handle,
                                       &gatts_val);
 
     if ((err_code == NRF_SUCCESS)     &&

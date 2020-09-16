@@ -23,7 +23,7 @@
 
 #include "nrf_fstorage.h"
 #include "nrf_drv_qspi.h"
-
+#include "nrf_drv_spi.h"
 #include "nordic_common.h"
 #include "nrf.h"
 #include "ble_hci.h"
@@ -44,6 +44,7 @@
 #include "bsp_btn_ble.h"
 #include "nrf_delay.h"
 #include "bsp.h"
+#include "security_manager.h"
 
 #if defined (UART_PRESENT)
 #include "nrf_uart.h"
@@ -68,7 +69,7 @@
 #include "packet.h"
 #include "buffer.h"
 #include "datatypes.h"
-#include "esb_timeslot.h"
+
 #include "crc.h"
 
 #include "nrf_log.h"
@@ -109,6 +110,7 @@ struct tm * tmTime;
 time_t currentTime;
 static volatile char datetimestring[ 64 ] = { 0 };
 static volatile bool log_file_active = false;
+static volatile bool write_logdata_now = false;
 
 // Piezo
 #define PIN_PIEZO 10
@@ -175,9 +177,6 @@ uint16_t lfs_file_count = 0;
 static lfs_t lfs;
 static lfs_file_t file;
 
-
-
-
 // configuration of the filesystem is provided by this struct
 const struct lfs_config cfg = {
     // block device operations
@@ -191,12 +190,46 @@ const struct lfs_config cfg = {
     .prog_size = 4,
     .block_size = 4096,
     .block_count = 8192, //4096 bytes/block @ 256Mbit (33554432 bytes) = 8192 blocks
-    .cache_size = 32,
+    .cache_size = 2048,
     .lookahead_size = 16,
     .block_cycles = 500,
 };
 
 ///////////////////
+
+void user_cfg_set(void);
+void user_cfg_get(void);
+#include "user_cfg.h"
+static int multiESCIndex = 0;
+const struct gotchi_configuration gotchi_cfg_default = {
+	.log_auto_stop_idle_time = 300,
+	.log_auto_stop_low_voltage = 20.0,
+	.log_auto_start_duty_cycle = 0.01,
+	.log_interval_hz = 1,
+
+	.multi_esc_mode = 0,
+	.multi_esc_ids = {0,0,0,0},
+
+	.gps_baud_rate = NRF_UARTE_BAUDRATE_9600,
+
+	.cfg_version = 1 //Expected configuration version
+};
+
+struct gotchi_configuration gotchi_cfg_user = {
+	.log_auto_stop_idle_time = 300,
+	.log_auto_stop_low_voltage = 20.0,
+	.log_auto_start_duty_cycle = 0.01,
+	.log_interval_hz = 1,
+
+	.multi_esc_mode = 0,
+	.multi_esc_ids = {0,0,0,0},
+
+	.gps_baud_rate = NRF_UARTE_BAUDRATE_9600,
+
+	.cfg_version = 0
+};
+
+//////////////////
 
 #ifndef MODULE_BUILTIN
 #define MODULE_BUILTIN					0
@@ -233,8 +266,8 @@ const struct lfs_config cfg = {
 
 #define APP_ADV_DURATION				18000									   /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 
-#define MIN_CONN_INTERVAL			   MSEC_TO_UNITS(15, UNIT_1_25_MS)			 /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
-#define MAX_CONN_INTERVAL			   MSEC_TO_UNITS(30, UNIT_1_25_MS)			 /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
+#define MIN_CONN_INTERVAL			   MSEC_TO_UNITS(7.5, UNIT_1_25_MS)			 /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
+#define MAX_CONN_INTERVAL			   MSEC_TO_UNITS(35, UNIT_1_25_MS)			 /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY				   0										   /**< Slave latency. */
 #define CONN_SUP_TIMEOUT				MSEC_TO_UNITS(4000, UNIT_10_MS)			 /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000)					   /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
@@ -290,8 +323,8 @@ const struct lfs_config cfg = {
 
 // Private variables
 APP_TIMER_DEF(m_packet_timer);
-APP_TIMER_DEF(m_nrf_timer);
 APP_TIMER_DEF(m_logging_timer);
+APP_TIMER_DEF(m_telemetry_timer);
 
 BLE_FUS_DEF(m_fus, NRF_SDH_BLE_TOTAL_LINK_COUNT);								   /**< BLE FUS service instance. */
 NRF_BLE_GATT_DEF(m_gatt);														   /**< GATT module instance. */
@@ -302,7 +335,7 @@ static uint16_t   m_conn_handle		  = BLE_CONN_HANDLE_INVALID;				 /**< Handle of
 uint16_t   m_ble_fus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;			/**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static ble_uuid_t m_adv_uuids[]		  =										  /**< Universally unique service identifier. */
 {
-		{BLE_UUID_FUS_SERVICE, FUS_SERVICE_UUID_TYPE}
+	{BLE_UUID_FUS_SERVICE, FUS_SERVICE_UUID_TYPE}
 };
 static volatile bool					m_is_enabled = true;
 static volatile bool					m_uart_error = false;
@@ -330,12 +363,11 @@ gps_uart_comm_params_t m_gpsuart_comm_params =
 		.cts_pin_no   = 0,
 		.flow_control = GPS_UART_FLOW_CONTROL_DISABLED,
 		.use_parity   = false,
-		.baud_rate	= NRF_UARTE_BAUDRATE_9600
+		.baud_rate	= NRF_UARTE_BAUDRATE_4800
 
 };
 // Functions
 void ble_printf(const char* format, ...);
-static void set_enabled(bool en);
 
 #ifdef NRF52840_XXAA
 static void cdc_acm_user_ev_handler(app_usbd_class_inst_t const * p_inst,
@@ -433,13 +465,148 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 	app_error_handler(DEAD_BEEF, line_num, p_file_name);
 }
 
+#include "peer_manager.h"
+#include "peer_manager_handler.h"
+static void advertising_start(bool erase_bonds);
+static pm_peer_id_t m_peer_to_be_deleted = PM_PEER_ID_INVALID;
+#define SEC_PARAM_BOND              1                                   /**< Perform bonding. */
+#define SEC_PARAM_MITM              1                                   /**< Man In The Middle protection not required. */
+#define SEC_PARAM_LESC              0                                   /**< LE Secure Connections enabled. */
+#define SEC_PARAM_KEYPRESS          0                                   /**< Keypress notifications not enabled. */
+#define SEC_PARAM_IO_CAPABILITIES   BLE_GAP_IO_CAPS_DISPLAY_ONLY                /**< No I/O capabilities. */
+#define SEC_PARAM_OOB               0                                   /**< Out Of Band data not available. */
+#define SEC_PARAM_MIN_KEY_SIZE      7                                   /**< Minimum encryption key size in octets. */
+#define SEC_PARAM_MAX_KEY_SIZE      16                                  /**< Maximum encryption key size in octets. */
+
+#define PASSKEY_LENGTH              6                                   /**< Length of pass-key received by the stack for display. */
+
+static void passkey_init(uint32_t ble_pin)
+{
+	char passkey[6];
+	itoa(ble_pin, passkey, 10);
+	ble_opt_t ble_opt;
+	ble_opt.gap_opt.passkey.p_passkey = (uint8_t*)&passkey[0];
+	(void)sd_ble_opt_set(BLE_GAP_OPT_PASSKEY, &ble_opt);
+	NRF_LOG_INFO("BLE GAP PASSKEY: %s", passkey);
+}
+
+/**@brief Clear bond information from persistent storage.
+ */
+static void delete_bonds(void)
+{
+    ret_code_t err_code;
+
+    NRF_LOG_INFO("Erase bonds!");
+
+    err_code = pm_peers_delete();
+    APP_ERROR_CHECK(err_code);
+}
+
+/**@brief Function for handling Peer Manager events.
+ *
+ * @param[in] p_evt  Peer Manager event.
+ */
+static volatile bool is_connection_secure = false;
+static void pm_evt_handler(pm_evt_t const * p_evt)
+{
+    ret_code_t err_code;
+
+    pm_handler_on_pm_evt(p_evt);
+    pm_handler_disconnect_on_sec_failure(p_evt);
+    pm_handler_flash_clean(p_evt);
+
+    switch (p_evt->evt_id)
+    {
+        case PM_EVT_CONN_SEC_SUCCEEDED:
+        {
+            pm_conn_sec_status_t conn_sec_status;
+
+            // Check if the link is authenticated (meaning at least MITM).
+            err_code = pm_conn_sec_status_get(p_evt->conn_handle, &conn_sec_status);
+            APP_ERROR_CHECK(err_code);
+
+            if (conn_sec_status.mitm_protected)
+            {
+                NRF_LOG_INFO("Link secured. Role: %d. conn_handle: %d, Procedure: %d",
+                             ble_conn_state_role(p_evt->conn_handle),
+                             p_evt->conn_handle,
+                             p_evt->params.conn_sec_succeeded.procedure);
+				is_connection_secure = true;
+				// Notify user connection successful
+				Adafruit_GFX_setCursor(64, 0);
+				Adafruit_GFX_print("BLE OK");
+				update_display = true;
+            }
+            else
+            {
+                // The peer did not use MITM, disconnect.
+                NRF_LOG_INFO("Collector did not use MITM, disconnecting");
+                err_code = pm_peer_id_get(m_conn_handle, &m_peer_to_be_deleted);
+                APP_ERROR_CHECK(err_code);
+                err_code = sd_ble_gap_disconnect(m_conn_handle,
+                                                 BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+                APP_ERROR_CHECK(err_code);
+            }
+        } break;
+
+        case PM_EVT_CONN_SEC_FAILED:
+            m_conn_handle = BLE_CONN_HANDLE_INVALID;
+			// Notify user connection failed
+			Adafruit_GFX_setCursor(64, 0);
+			Adafruit_GFX_print("BLEPIN");
+			update_display = true;
+            break;
+
+        case PM_EVT_PEERS_DELETE_SUCCEEDED:
+            advertising_start(false);
+            break;
+
+        default:
+            break;
+    }
+}
+
+/**@brief Function for the Peer Manager initialization.
+ */
+static void peer_manager_init(void)
+{
+    ble_gap_sec_params_t sec_param;
+    ret_code_t           err_code;
+
+    err_code = pm_init();
+    APP_ERROR_CHECK(err_code);
+
+    memset(&sec_param, 0, sizeof(ble_gap_sec_params_t));
+
+    // Security parameters to be used for all security procedures.
+    sec_param.bond           = SEC_PARAM_BOND;
+    sec_param.mitm           = SEC_PARAM_MITM;
+    sec_param.lesc           = SEC_PARAM_LESC;
+    sec_param.keypress       = SEC_PARAM_KEYPRESS;
+    sec_param.io_caps        = SEC_PARAM_IO_CAPABILITIES;
+    sec_param.oob            = SEC_PARAM_OOB;
+    sec_param.min_key_size   = SEC_PARAM_MIN_KEY_SIZE;
+    sec_param.max_key_size   = SEC_PARAM_MAX_KEY_SIZE;
+    sec_param.kdist_own.enc  = 1;
+    sec_param.kdist_own.id   = 1;
+    sec_param.kdist_peer.enc = 1;
+    sec_param.kdist_peer.id  = 1;
+
+    err_code = pm_sec_params_set(&sec_param);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = pm_register(pm_evt_handler);
+    APP_ERROR_CHECK(err_code);
+}
+
 static void gap_params_init(void)
 {
 	uint32_t				err_code;
 	ble_gap_conn_params_t   gap_conn_params;
 	ble_gap_conn_sec_mode_t sec_mode;
 
-	BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
+	//BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
+	BLE_GAP_CONN_SEC_MODE_SET_ENC_WITH_MITM(&sec_mode);
 
 	err_code = sd_ble_gap_device_name_set(&sec_mode,
 			(const uint8_t *) DEVICE_NAME,
@@ -457,11 +624,24 @@ static void gap_params_init(void)
 	APP_ERROR_CHECK(err_code);
 }
 
-static void start_advertising(void) {
-	ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
-	sd_ble_gap_tx_power_set(BLE_GAP_TX_POWER_ROLE_ADV, m_advertising.adv_handle, 8);
-}
 
+/**@brief Function for starting advertising.
+ */
+static void advertising_start(bool erase_bonds)
+{
+    if (erase_bonds == true)
+    {
+        delete_bonds();
+        // Advertising is started by PM_EVT_PEERS_DELETE_SUCCEEDED event.
+    }
+    else
+    {
+        ret_code_t err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
+
+        APP_ERROR_CHECK(err_code);
+		sd_ble_gap_tx_power_set(BLE_GAP_TX_POWER_ROLE_ADV, m_advertising.adv_handle, 8);
+    }
+}
 
 /**@brief Function for handling Queued Write Module errors.
  *
@@ -576,7 +756,7 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt) {
 		break;
 	case BLE_ADV_EVT_IDLE:
 //		sleep_mode_enter();
-		start_advertising();
+		advertising_start(false);
 		break;
 	default:
 		break;
@@ -590,17 +770,34 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt) {
  * @param[in]   p_context   Unused.
  */
 static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
+	ret_code_t err_code;
+
+	pm_handler_secure_on_connection(p_ble_evt);
+
 	switch (p_ble_evt->header.evt_id) {
 	case BLE_GAP_EVT_CONNECTED:
 		nrf_gpio_pin_set(LED_PIN);
+		NRF_LOG_INFO("Connected");
+		m_peer_to_be_deleted = PM_PEER_ID_INVALID;
 		m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
-		nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
+		err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
+		APP_ERROR_CHECK(err_code);
 		sd_ble_gap_tx_power_set(BLE_GAP_TX_POWER_ROLE_CONN, m_conn_handle, 8);
 		break;
 
 	case BLE_GAP_EVT_DISCONNECTED:
 		nrf_gpio_pin_clear(LED_PIN);
+		is_connection_secure = false;
+		NRF_LOG_INFO("Disconnected");
 		m_conn_handle = BLE_CONN_HANDLE_INVALID;
+		// Check if the last connected peer had not used MITM, if so, delete its bond information.
+		if (m_peer_to_be_deleted != PM_PEER_ID_INVALID)
+		{
+			err_code = pm_peer_delete(m_peer_to_be_deleted);
+			APP_ERROR_CHECK(err_code);
+			NRF_LOG_DEBUG("Collector's bond deleted");
+			m_peer_to_be_deleted = PM_PEER_ID_INVALID;
+		}
 		break;
 
 	case BLE_GAP_EVT_PHY_UPDATE_REQUEST: {
@@ -613,10 +810,33 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
 	} break;
 
 	case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
-		// Pairing not supported
-		sd_ble_gap_sec_params_reply(m_conn_handle, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP, NULL, NULL);
-		break;
+            NRF_LOG_DEBUG("BLE_GAP_EVT_SEC_PARAMS_REQUEST");
+            break;
+	case BLE_GAP_EVT_PASSKEY_DISPLAY:
+	{
+		char passkey[PASSKEY_LENGTH + 1];
+		memcpy(passkey, p_ble_evt->evt.gap_evt.params.passkey_display.passkey, PASSKEY_LENGTH);
+		passkey[PASSKEY_LENGTH] = 0;
 
+		NRF_LOG_INFO("Passkey: %s", nrf_log_push(passkey));
+	} break;
+
+	case BLE_GAP_EVT_AUTH_KEY_REQUEST:
+		NRF_LOG_INFO("BLE_GAP_EVT_AUTH_KEY_REQUEST");
+	break;
+
+	case BLE_GAP_EVT_LESC_DHKEY_REQUEST:
+		NRF_LOG_INFO("BLE_GAP_EVT_LESC_DHKEY_REQUEST");
+	break;
+
+	case BLE_GAP_EVT_AUTH_STATUS:
+		NRF_LOG_INFO("BLE_GAP_EVT_AUTH_STATUS: status=0x%x bond=0x%x lv4: %d kdist_own:0x%x kdist_peer:0x%x",
+			p_ble_evt->evt.gap_evt.params.auth_status.auth_status,
+			p_ble_evt->evt.gap_evt.params.auth_status.bonded,
+			p_ble_evt->evt.gap_evt.params.auth_status.sm1_levels.lv4,
+			*((uint8_t *)&p_ble_evt->evt.gap_evt.params.auth_status.kdist_own),
+			*((uint8_t *)&p_ble_evt->evt.gap_evt.params.auth_status.kdist_peer));
+	break;
 	case BLE_GATTS_EVT_SYS_ATTR_MISSING:
 		// No system attributes have been stored.
 		sd_ble_gatts_sys_attr_set(m_conn_handle, NULL, 0, 0);
@@ -636,7 +856,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
 
 	break;
 	default:
-		NRF_LOG_INFO("p_ble_evt->header.evt_id %ld", p_ble_evt->header.evt_id);
+		NRF_LOG_INFO("******************************************************p_ble_evt->header.evt_id %ld", p_ble_evt->header.evt_id);
 		NRF_LOG_FLUSH();
 		// No implementation needed.
 		break;
@@ -728,6 +948,7 @@ static void uart_init(void) {
 }
 static void gps_init(void) {
 	uint32_t err_code;
+	m_gpsuart_comm_params.baud_rate = gotchi_cfg_user.gps_baud_rate;
 	GPS_UART_FIFO_INIT(&m_gpsuart_comm_params,
 			UART_RX_BUF_SIZE,
 			64,
@@ -761,39 +982,10 @@ static void advertising_init(void) {
 	ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
 }
 
-static void set_enabled(bool en) {
-	m_is_enabled = en;
-
-	if (m_is_enabled) {
-		app_uart_close();
-		gps_uart_close();
-		m_uart_comm_params.tx_pin_no = UART_TX;
-		uart_init();
-		gps_init();
-		nrf_gpio_cfg_default(UART_TX_DISABLED);
-	} else {
-		app_uart_close();
-		gps_uart_close();
-		m_uart_comm_params.tx_pin_no = UART_TX_DISABLED;
-		uart_init();
-		gps_init();
-		nrf_gpio_cfg_default(UART_TX);
-	}
-}
-
 static void uart_send_buffer(unsigned char *data, unsigned int len) {
 	for (int i = 0;i < len;i++) {
 		app_uart_put(data[i]);
 	}
-}
-
-void rfhelp_send_data_crc(uint8_t *data, unsigned int len) {
-	uint8_t buffer[len + 2];
-	unsigned short crc = crc16((unsigned char*)data, len);
-	memcpy(buffer, data, len);
-	buffer[len] = (char)(crc >> 8);
-	buffer[len + 1] = (char)(crc & 0xFF);
-	esb_timeslot_set_next_packet(buffer, len + 2);
 }
 
 static void ble_send_buffer(unsigned char *data, unsigned int len) {
@@ -825,6 +1017,13 @@ static void process_packet_ble(unsigned char *data, unsigned int len) {
 			data[0] == COMM_ERASE_NEW_APP_ALL_CAN ||
 			data[0] == COMM_WRITE_NEW_APP_DATA_ALL_CAN) {
 		m_other_comm_disable_time = 5000;
+	}
+
+	if(!is_connection_secure) {
+		NRF_LOG_INFO("Connection is not yet secure. Sorry. I can't help you at this time.");
+		NRF_LOG_FLUSH();
+		//TODO: send response to device that ble is not secure? or check on device if connection has been secured?
+		return;
 	}
 
 	CRITICAL_REGION_ENTER();
@@ -871,12 +1070,12 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 		esc_telemetry.vd = buffer_get_float32(data,100.0,&index);
 		esc_telemetry.vq = buffer_get_float32(data,100.0,&index);
 
-		//TODO: Rate limit writing telemetry since real time data also requests this packet
-		// 		Unless there is a fault!
-		if (log_file_active)
+		//TODO: If there is a fault we would like to write_logdata_now but still need a sensible rate limit to protect storage
+		if (log_file_active && write_logdata_now)
 		{
-			//FileManager.writeToLogFile("${dtNow.toIso8601String().substring(0,21)},values,${telemetryPacket.v_in},${telemetryPacket.temp_motor},${telemetryPacket.temp_mos},${telemetryPacket.duty_now},${telemetryPacket.current_motor},${telemetryPacket.current_in},${telemetryPacket.rpm},${telemetryPacket.tachometer_abs},${telemetryPacket.vesc_id}\n");
-            //2020-05-19T13:46:28.8, values, 12.9, -99.9, 29.0, 0.0, 0.0, 0.0, 0.0, 11884, 102
+			// Clear write now flag
+			write_logdata_now = false;
+
 			char values_buffer[ 256 ] = {0};
 			size_t bytes_written = 0;
 			// Write fault codes to their own line
@@ -911,25 +1110,25 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	// Watch telemetry data to trigger logging
 	// If we are logging now see if we should stop
 	if (log_file_active) {
-		if(esc_telemetry.v_in < 14.0) { //TODO: Specify appropriate low voltage detection limit
+		if(esc_telemetry.v_in < gotchi_cfg_user.log_auto_stop_low_voltage) {
 			log_file_stop();
 			beep_speaker(50,50);
 			NRF_LOG_INFO("Logging stopped due to power drop");
 			NRF_LOG_FLUSH();
 			send_status_packet();
-		} else if (currentTime - lastTimeBoardMoved > 60) { //TODO: Specify appropriate duration to auto stop logging
+		} else if (currentTime - lastTimeBoardMoved > gotchi_cfg_user.log_auto_stop_idle_time) {
 			log_file_stop();
 			NRF_LOG_INFO("Logging stopped due to inactivity");
 			NRF_LOG_FLUSH();
 			beep_speaker(50,50);
 			send_status_packet();
-		} else if (fabs(esc_telemetry.duty_now) > 0.01) { //TODO: Specify appropriate minimum duty cycle to initiate logging
+		} else if (fabs(esc_telemetry.duty_now) > gotchi_cfg_user.log_auto_start_duty_cycle) {
 			// We are moving while logging. Keep it up!
 			lastTimeBoardMoved = currentTime;
 		}
 	}
 	// We are not logging, see if we should start
-	else if (fabs(esc_telemetry.duty_now) > 0.01) { //TODO: Specify appropriate minimum duty cycle to initiate logging
+	else if (fabs(esc_telemetry.duty_now) > gotchi_cfg_user.log_auto_start_duty_cycle) {
 		log_file_start();
 		NRF_LOG_INFO("Logging started automatically");
 		NRF_LOG_FLUSH();
@@ -938,11 +1137,15 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 
 	// Finish packet processing
 	if (data[0] == COMM_EXT_NRF_ESB_SET_CH_ADDR) {
-		esb_timeslot_set_ch_addr(data[1], data[2], data[3], data[4]);
+		//NRF_LOG_INFO("COMM_EXT_NRF_ESB_SET_CH_ADDR 0x%02x", data[1]);
+		//NRF_LOG_FLUSH();
 	} else if (data[0] == COMM_EXT_NRF_ESB_SEND_DATA) {
-		rfhelp_send_data_crc(data + 1, len - 1);
+		//Send data to the user's remote
+		//NRF_LOG_INFO("COMM_EXT_NRF_ESB_SEND_DATA");
+		//NRF_LOG_FLUSH();
 	} else if (data[0] == COMM_EXT_NRF_SET_ENABLED) {
-		set_enabled(data[1]);
+		//NRF_LOG_INFO("COMM_EXT_NRF_SET_ENABLED");
+		//NRF_LOG_FLUSH();
 	} else {
 		if (m_is_enabled) {
 			packet_send_packet(data, len, PACKET_BLE);
@@ -984,17 +1187,6 @@ void cdc_printf(const char* format, ...) {
 #endif
 }
 
-static void esb_timeslot_data_handler(void *p_data, uint16_t length) {
-	if (m_other_comm_disable_time == 0) {
-		uint8_t buffer[length + 1];
-		buffer[0] = COMM_EXT_NRF_ESB_RX_DATA;
-		memcpy(buffer + 1, p_data, length);
-		CRITICAL_REGION_ENTER();
-		packet_send_packet(buffer, length + 1, PACKET_VESC);
-		CRITICAL_REGION_EXIT();
-	}
-}
-
 static void packet_timer_handler(void *p_context) {
 	(void)p_context;
 	packet_timerfunc();
@@ -1004,18 +1196,6 @@ static void packet_timer_handler(void *p_context) {
 		m_other_comm_disable_time--;
 	}
 	CRITICAL_REGION_EXIT();
-}
-
-static void nrf_timer_handler(void *p_context) {
-	(void)p_context;
-
-	if (m_other_comm_disable_time == 0) {
-		uint8_t buffer[1];
-		buffer[0] = COMM_EXT_NRF_PRESENT;
-		CRITICAL_REGION_ENTER();
-		packet_send_packet(buffer, 1, PACKET_VESC);
-		CRITICAL_REGION_EXIT();
-	}
 }
 
 static void logging_timer_handler(void *p_context) {
@@ -1032,13 +1212,19 @@ static void logging_timer_handler(void *p_context) {
 		datetimestring[i] = dt_string[i];
 	}
 
-	//NRF_LOG_INFO("This would be a nice time to perform logging %s", datetimestring);
-	//NRF_LOG_FLUSH();
+	// Print debugging information
 	char debug_buff[196] = {0};
 	sprintf(debug_buff, "1Hz: %s, GPS: Valid %d, Fix %d, Mode %d, Lat %f Lon %f, SatInView %d, Seconds %d", datetimestring, hgps.is_valid, hgps.fix, hgps.fix_mode, hgps.latitude, hgps.longitude, hgps.sats_in_view, hgps.seconds);
 	NRF_LOG_INFO("%s", debug_buff);
 	NRF_LOG_FLUSH();
 
+	// Write GPS status to display
+	Adafruit_GFX_setCursor(65,8);
+	sprintf(display_text_buffer,"GPS %02d S%d%d", hgps.seconds, hgps.is_valid, hgps.fix);
+	Adafruit_GFX_print(display_text_buffer);
+	update_display = true;
+
+	// If logging is active and GPS is valid and fixed log GPS data
 	if (log_file_active && hgps.is_valid && hgps.fix > 0)
 	{
 		static char position_buffer[128]; //TODO: consolidate values and position buffers
@@ -1051,12 +1237,83 @@ static void logging_timer_handler(void *p_context) {
 		}
 	}
 
-	static unsigned char telemetryPacket[] = {0x02, 0x01, 0x04, 0x40, 0x84, 0x03};
-	uart_send_buffer(telemetryPacket, 6);
-
+	// Sync filesystem contents every 60 seconds
 	if (log_file_active && currentTime % 60 == 0)
 	{
 		lfs_file_sync(&lfs, &file);
+	}
+}
+
+static void telemetry_timer_handler(void *p_context) {
+	(void)p_context;
+	// Set flag to write data when a response is received
+	write_logdata_now = true;
+
+	// Requesting ESC telemetry
+	static unsigned char telemetryPacket[] = {0x02, 0x01, COMM_GET_VALUES, 0x40, 0x84, 0x03};
+	static unsigned char telemetryPacketCAN[] = {0x02, 0x03, COMM_FORWARD_CAN, 0x00, COMM_GET_VALUES, 0x00, 0x00, 0x03};
+	static uint16_t crc;
+	switch (gotchi_cfg_user.multi_esc_mode)
+	{
+		case 2: //Dual ESC Mode (1 CAN FWD)
+			//NRF_LOG_INFO("Dual ESC Mode"); NRF_LOG_FLUSH();
+			switch (multiESCIndex++)
+			{
+				case 0:
+					//NRF_LOG_INFO("requesting esc values locally"); NRF_LOG_FLUSH();
+					uart_send_buffer(telemetryPacket, 6);
+				break;
+				case 1:
+					//NRF_LOG_INFO("requesting esc values over can"); NRF_LOG_FLUSH();
+					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[0];
+					crc = crc16(telemetryPacketCAN + 2, 3);
+					telemetryPacketCAN[5] = crc >> 8;
+					telemetryPacketCAN[6] = crc & 0xff;
+					uart_send_buffer(telemetryPacketCAN, 8);
+					multiESCIndex = 0; // Reset cycle
+				break;
+				default:
+					multiESCIndex = 0; // Config switched, reset
+				break;
+			}
+		break;
+		case 4:
+			NRF_LOG_INFO("Quad ESC Mode"); NRF_LOG_FLUSH();
+			switch (multiESCIndex++)
+			{
+				case 0:
+					uart_send_buffer(telemetryPacket, 6);
+				break;
+				case 1:
+					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[0];
+					crc = crc16(telemetryPacketCAN + 2, 3);
+					telemetryPacketCAN[5] = crc >> 8;
+					telemetryPacketCAN[6] = crc & 0xff;
+					uart_send_buffer(telemetryPacketCAN, 8);
+				break;
+				case 2:
+					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[1];
+					crc = crc16(telemetryPacketCAN + 2, 3);
+					telemetryPacketCAN[5] = crc >> 8;
+					telemetryPacketCAN[6] = crc & 0xff;
+					uart_send_buffer(telemetryPacketCAN, 8);
+				break;
+				case 3:
+					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[2];
+					crc = crc16(telemetryPacketCAN + 2, 3);
+					telemetryPacketCAN[5] = crc >> 8;
+					telemetryPacketCAN[6] = crc & 0xff;
+					uart_send_buffer(telemetryPacketCAN, 8);
+					multiESCIndex = 0; // Reset cycle
+				break;
+				default:
+					multiESCIndex = 0;
+				break;
+			}
+		break;
+		default:
+			// Request from single ESC only
+			uart_send_buffer(telemetryPacket, 6);
 	}
 }
 
@@ -1066,7 +1323,7 @@ void display_file_count(void)
 	NRF_LOG_FLUSH();
 #if HAS_DISPLAY
 	Adafruit_GFX_setCursor(0,8);
-	sprintf(display_text_buffer,"FS ready: %d files   ", lfs_file_count);
+	sprintf(display_text_buffer,"%d files   ", lfs_file_count);
 	Adafruit_GFX_print(display_text_buffer);
 	update_display = true;
 #endif
@@ -1140,14 +1397,19 @@ static void configure_memory()
 
 }
 
-void qspiInit()
+/**@brief Function for initializing the nrf log module.
+ */
+static void log_init(void)
+{
+    ret_code_t err_code = NRF_LOG_INIT(NULL);
+    APP_ERROR_CHECK(err_code);
+
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
+}
+
+void qspi_init()
 {
 	uint32_t err_code=0;
-
-	err_code = NRF_LOG_INIT(NULL);
-	APP_ERROR_CHECK(err_code);
-
-	NRF_LOG_DEFAULT_BACKENDS_INIT();
 
 	NRF_LOG_INFO("QSPI initializing");
 	NRF_LOG_FLUSH();
@@ -1155,6 +1417,7 @@ void qspiInit()
 	nrf_drv_qspi_config_t config = NRF_DRV_QSPI_DEFAULT_CONFIG;
 
 	err_code = nrf_drv_qspi_init(&config, NULL, NULL);
+	NRF_LOG_INFO("QSPI driver init response %d", err_code);
 	APP_ERROR_CHECK(err_code);
 	NRF_LOG_INFO("QSPI driver initialized");
 
@@ -1201,6 +1464,7 @@ void log_file_start()
 		NRF_LOG_INFO("log_file_active");
 		NRF_LOG_FLUSH();
 		log_file_active = true;
+		multiESCIndex = 0; // Always request from primary ESC first
 		++lfs_file_count;
 		display_file_count();
 #if HAS_DISPLAY
@@ -1222,7 +1486,7 @@ void update_status_packet(char * buffer)
 }
 
 
-void littlefsInit()
+void littlefs_init()
 {
 	NRF_LOG_INFO("LittleFS initializing");
     NRF_LOG_FLUSH();
@@ -1235,8 +1499,10 @@ void littlefsInit()
 	if (err) {
         NRF_LOG_WARNING("LittleFS needs to format the storage");
         NRF_LOG_FLUSH();
-        lfs_format(&lfs, &cfg);
-        lfs_mount(&lfs, &cfg);
+        int lfs_format_response = lfs_format(&lfs, &cfg);
+        int lfs_mount_response = lfs_mount(&lfs, &cfg);
+		NRF_LOG_WARNING("LittleFS format (%d) and mount (%d) completed", lfs_format_response, lfs_mount_response);
+		user_cfg_set();
     }
     NRF_LOG_INFO("LittleFS initialized");
     NRF_LOG_FLUSH();
@@ -1302,9 +1568,7 @@ void littlefsInit()
 	NRF_LOG_FLUSH();
 
 #if HAS_DISPLAY
-	Adafruit_GFX_setCursor(0,8);
-	sprintf(display_text_buffer,"FS ready: %d files", lfs_file_count);
-	Adafruit_GFX_print(display_text_buffer);
+	display_file_count();
 	Adafruit_GFX_setCursor(0,16);
 	sprintf(display_text_buffer,"Logging inactive");
 	Adafruit_GFX_print(display_text_buffer);
@@ -1313,6 +1577,42 @@ void littlefsInit()
 }
 
 /////////////////////
+
+void user_cfg_set(void)
+{
+	NRF_LOG_INFO("Saving User Configuration");
+	NRF_LOG_FLUSH();
+	lfs_file_open(&lfs, &file, "user_configuration", LFS_O_RDWR | LFS_O_CREAT);
+	lfs_file_write(&lfs, &file, &gotchi_cfg_user, sizeof(gotchi_cfg_user));
+	lfs_file_close(&lfs, &file);
+	NRF_LOG_INFO("User Configuration Saved");
+	NRF_LOG_FLUSH();
+}
+
+void user_cfg_get(void)
+{
+	NRF_LOG_INFO("Loading User Configuration");
+	NRF_LOG_FLUSH();
+
+	struct lfs_info info;
+	lfs_stat(&lfs, "user_configuration", &info);
+	if (info.size >= sizeof(gotchi_cfg_user))
+	{
+		lfs_file_open(&lfs, &file, "user_configuration", LFS_O_RDONLY);
+		lfs_file_read(&lfs, &file, &gotchi_cfg_user, sizeof(gotchi_cfg_user));
+		lfs_file_close(&lfs, &file);
+		NRF_LOG_INFO("User Configuration Loaded");
+		NRF_LOG_FLUSH();
+	}
+
+	if (gotchi_cfg_user.cfg_version != gotchi_cfg_default.cfg_version)
+	{
+		NRF_LOG_WARNING("User Configuration Version Mismatch. Restoring Defaults");
+		NRF_LOG_FLUSH();
+		gotchi_cfg_user = gotchi_cfg_default;
+		user_cfg_set();
+	}
+}
 
 void pwm_init(void)  
 {
@@ -1545,6 +1845,108 @@ void play_game(){
 //You didn't listen when I said don't ask, did you?
 #endif
 
+
+#define SPI_INSTANCE  2 /**< SPI instance index. */
+static const nrf_drv_spi_t spi = NRF_DRV_SPI_INSTANCE(SPI_INSTANCE);  /**< SPI instance. */
+static volatile bool spi_xfer_done;  /**< Flag used to indicate that SPI instance completed the transfer. */
+
+#define TEST_STRING "Nordic"
+static uint8_t       m_tx_buf[] = TEST_STRING;           /**< TX buffer. */
+static uint8_t       m_rx_buf[sizeof(TEST_STRING) + 1];    /**< RX buffer. */
+static const uint8_t m_length = sizeof(m_tx_buf);        /**< Transfer length. */
+
+/**
+ * @brief SPI user event handler.
+ * @param event
+ */
+void spi_event_handler(nrf_drv_spi_evt_t const * p_event,
+                       void *                    p_context)
+{
+    spi_xfer_done = true;
+    NRF_LOG_INFO("Transfer completed.");
+    if (m_rx_buf[0] != 0)
+    {
+        NRF_LOG_INFO(" Received:");
+        NRF_LOG_HEXDUMP_INFO(m_rx_buf, strlen((const char *)m_rx_buf));
+    }
+}
+
+//TODO: remove SPI if not in use
+void spi_init(void)
+{
+	nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
+    spi_config.ss_pin   = 31;
+    spi_config.miso_pin = 30;
+    spi_config.mosi_pin = 29;
+    spi_config.sck_pin  = 28;
+    APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, spi_event_handler, NULL));
+
+    NRF_LOG_INFO("SPI example started.");
+	while (0)
+    {
+        // Reset rx buffer and transfer done flag
+        memset(m_rx_buf, 0, m_length);
+        spi_xfer_done = false;
+
+        APP_ERROR_CHECK(nrf_drv_spi_transfer(&spi, m_tx_buf, m_length, m_rx_buf, m_length));
+
+        while (!spi_xfer_done)
+        {
+            __WFE();
+        }
+
+        NRF_LOG_FLUSH();
+
+        bsp_board_led_invert(BSP_BOARD_LED_0);
+        nrf_delay_ms(200);
+    }
+}
+
+char ble_pin[7] = {0};
+uint16_t duration_button_pressed = 0;
+bool is_pin_displayed = false;
+void process_user_input()
+{
+	// Check if user if pressing the button while we do not have an active connection
+	if (isButtonPressed && !is_connection_secure)
+	{
+		nrf_delay_ms(25);
+		if (isButtonPressed) duration_button_pressed += 25;
+	}
+	// If user held button for 5 seconds we clear all bonds
+	if (duration_button_pressed > 5000 && m_conn_handle == BLE_CONN_HANDLE_INVALID)
+	{
+		NRF_LOG_WARNING("User held button for 5 seconds without a BLE connection");
+		duration_button_pressed = 0;
+		//TODO: Consider asking for another button press within X milliseconds to confirm clearing
+		sd_ble_gap_adv_stop(m_advertising.adv_handle);
+		advertising_start(true);
+		// Notify user
+		Adafruit_GFX_setCursor(64, 0);
+		Adafruit_GFX_print("CLEARD");
+		update_display = true;
+	}
+	// If user pressed button for less than 5 seconds display the PIN code
+	if (duration_button_pressed > 0 && !isButtonPressed)
+	{
+		duration_button_pressed = 0;
+		if (is_pin_displayed)
+		{
+			is_pin_displayed = false;
+			Adafruit_GFX_setCursor(64, 0);
+			Adafruit_GFX_print("      ");
+		}
+		else
+		{
+			is_pin_displayed = true;
+			Adafruit_GFX_setCursor(64, 0);
+			Adafruit_GFX_print(ble_pin);
+		}
+
+		update_display = true;
+	}
+}
+
 int main(void) {
 
 	nrf_gpio_cfg_input(PIN_BUTTON,NRF_GPIO_PIN_PULLUP);
@@ -1565,24 +1967,22 @@ int main(void) {
 	app_usbd_class_append(class_cdc_acm);
 #endif
 
-////////////////////////////
-	// Test piezo
+	// Initialize PWM for piezo output
 	pwm_init();
-	beep_speaker(75,50); //Play tone blocking, allows time for OLED to init
+	beep_speaker(75,50); //Play tone blocking, allowing time for OLED to init
 
-	// Init I2C
+	// Init I2C for RTC and OLED
 	ret_code_t err_code = twi_master_init();
 	APP_ERROR_CHECK(err_code);
 
-///////////////////Display test
 #if HAS_DISPLAY
 
-	SSD1306_begin(SSD1306_SWITCHCAPVCC, 0x3C, false); //Note, display needs few ms before it can talk
+	//NOTE: display needs few ms before it will respond from cold boot
+	SSD1306_begin(SSD1306_SWITCHCAPVCC, 0x3C, false);
 	Adafruit_GFX_init(SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT, SSD1306_drawPixel);
 
 	SSD1306_clearDisplay();
 	SSD1306_display();
-
 
 	char freetitle[] = "FreeSK8";
 	Adafruit_GFX_setTextSize(1);
@@ -1592,7 +1992,6 @@ int main(void) {
 
 #endif
 
-////////////////////////////
 	// Allocate tmTime in memory
 	time ( &currentTime );
 	tmTime = localtime ( &currentTime );
@@ -1601,23 +2000,38 @@ int main(void) {
 	// Get the current time from the RTC
 	rtc_get_time();
 
-////////////////////////////
 #if HAS_DISPLAY
 	if(isButtonPressed)
 	{
 		play_game();
 	}
 #endif
-////////////////////////////
 
-	//QSPI Testing
-	qspiInit();
-	littlefsInit();
+	// NRF LOG Init
+	log_init();
 
-/////////////////////////////
+	// BLE PIN CODE
+	uint32_t ble_bondage_safe_word = (NRF_FICR->DEVICEID[0] +  NRF_FICR->DEVICEID[1]) % 999999;
+	if (ble_bondage_safe_word < 100000)
+	{
+		NRF_LOG_WARNING("Computed PIN was 5 digits");
+		ble_bondage_safe_word += 100000;
+	}
+	NRF_LOG_INFO("PIN CODE %d", ble_bondage_safe_word);
+	// Store PIN for Display
+	itoa(ble_bondage_safe_word, ble_pin, 10);
 
+	// QSPI & LittleFS filesystem initilization
+	qspi_init();
+	littlefs_init();
+
+	// Load the user configuration from filesystem
+	user_cfg_get();
+
+	// Init GPS after user configuration are loaded
 	gps_init();
-	// Turn off LED during boot
+
+	// Turn off LED when robogotchi specific init is complete
 	nrf_gpio_pin_clear(LED_PIN);
 
 	uart_init();
@@ -1625,14 +2039,13 @@ int main(void) {
 	nrf_pwr_mgmt_init();
 	ble_stack_init();
 	gap_params_init();
+	passkey_init(ble_bondage_safe_word);
 	gatt_init();
 	services_init();
 	advertising_init();
 	conn_params_init();
+	peer_manager_init();
 	command_interface_init(&ble_send_logbuffer, &lfs);
-
-
-	(void)set_enabled;
 
 	packet_init(uart_send_buffer, process_packet_vesc, PACKET_VESC);
 	packet_init(ble_send_buffer, process_packet_ble, PACKET_BLE);
@@ -1640,25 +2053,27 @@ int main(void) {
 	app_timer_create(&m_packet_timer, APP_TIMER_MODE_REPEATED, packet_timer_handler);
 	app_timer_start(m_packet_timer, APP_TIMER_TICKS(1), NULL);
 
-	app_timer_create(&m_nrf_timer, APP_TIMER_MODE_REPEATED, nrf_timer_handler);
-	app_timer_start(m_nrf_timer, APP_TIMER_TICKS(1000), NULL);
-
 	app_timer_create(&m_logging_timer, APP_TIMER_MODE_REPEATED, logging_timer_handler);
 	app_timer_start(m_logging_timer, APP_TIMER_TICKS(1000), NULL);
 
-	esb_timeslot_init(esb_timeslot_data_handler);
-	esb_timeslot_sd_start();
+	app_timer_create(&m_telemetry_timer, APP_TIMER_MODE_REPEATED, telemetry_timer_handler);
+	app_timer_start(m_telemetry_timer, APP_TIMER_TICKS(1000 / gotchi_cfg_user.log_interval_hz), NULL);
+
+	//TODO: setup timer to request ESC data at user's configured interval
 
 #ifdef NRF52840_XXAA
 	app_usbd_power_events_enable();
 #endif
 
-	start_advertising();
+	advertising_start(false);
 
 	for (;;) {
 #ifdef NRF52840_XXAA
 		while (app_usbd_event_queue_process()){}
 #endif
+
+		// Monitor button press; Do not block for more than 25ms
+		process_user_input();
 
 		if (m_uart_error) {
 			app_uart_close();

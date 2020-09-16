@@ -7,6 +7,7 @@
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
 #include "nrf_ble_gatt.h"
+#include "user_cfg.h"
 
 extern uint16_t lfs_file_count;
 extern void display_file_count(void);
@@ -14,6 +15,9 @@ extern int log_file_stop();
 extern void log_file_start();
 extern void update_status_packet(char * buffer);
 extern uint16_t m_ble_fus_max_data_len;
+
+extern void user_cfg_set(void);
+extern struct gotchi_configuration gotchi_cfg_user;
 
 static lfs_file_t file;
 static lfs_dir_t directory;
@@ -165,8 +169,7 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_INFO("filepath %s", filepath);
             NRF_LOG_FLUSH();
 
-            //TODO: testing un-mount to fix random hangs. Might not be necessary
-            lfs_unmount( m_lfs );
+            lfs_unmount(m_lfs);
             lfs_mount(m_lfs, &cfg);
 
             int remove_response = lfs_remove(m_lfs,filepath);
@@ -199,7 +202,93 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.0.7,alpha");
+            sprintf((char *)command_response_buffer, "version,0.0.10,alpha");
+            m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
+        }
+        else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
+        {
+            sprintf((char *)command_response_buffer, "getcfg,%d,%0.2f,%0.2f,%d,%d,%d,%d,%d,%d,%ld,%ld",
+                gotchi_cfg_user.log_auto_stop_idle_time,
+                gotchi_cfg_user.log_auto_stop_low_voltage,
+                gotchi_cfg_user.log_auto_start_duty_cycle,
+                gotchi_cfg_user.log_interval_hz,
+                gotchi_cfg_user.multi_esc_mode,
+                gotchi_cfg_user.multi_esc_ids[0],
+                gotchi_cfg_user.multi_esc_ids[1],
+                gotchi_cfg_user.multi_esc_ids[2],
+                gotchi_cfg_user.multi_esc_ids[3],
+                gotchi_cfg_user.gps_baud_rate,
+                gotchi_cfg_user.cfg_version
+            );
+            m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
+        }
+        else if(strncmp(command_input_buffer, "setcfg", 6) == 0)
+        {
+            struct gotchi_configuration gotchi_cfg;
+            gotchi_cfg.log_auto_stop_idle_time = 0;
+            gotchi_cfg.log_auto_stop_low_voltage = 0;
+            gotchi_cfg.log_auto_start_duty_cycle = 0;
+            gotchi_cfg.log_interval_hz = 0;
+            gotchi_cfg.multi_esc_mode = 0;
+            gotchi_cfg.multi_esc_ids[0] = 0;
+            gotchi_cfg.multi_esc_ids[1] = 0;
+            gotchi_cfg.multi_esc_ids[2] = 0;
+            gotchi_cfg.multi_esc_ids[3] = 0;
+            gotchi_cfg.gps_baud_rate = 0;
+            gotchi_cfg.cfg_version = 0;
+            char * usr_cfg = command_input_buffer + 7;
+            NRF_LOG_INFO("setcfg command received: %s", usr_cfg);
+            NRF_LOG_FLUSH();
+            
+            char *field = strtok(usr_cfg, ","); NRF_LOG_INFO("field: %s", field); NRF_LOG_FLUSH();
+            gotchi_cfg.log_auto_stop_idle_time = atoi(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.log_auto_stop_low_voltage = atof(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.log_auto_start_duty_cycle = atof(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.log_interval_hz = atoi(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.multi_esc_mode = atoi(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.multi_esc_ids[0] = atoi(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.multi_esc_ids[1] = atoi(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.multi_esc_ids[2] = atoi(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.multi_esc_ids[3] = atoi(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.gps_baud_rate = atoi(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.cfg_version = atoi(field);
+#ifdef P00PIES
+            static char testpoo[128] = {0};
+            sprintf(testpoo,"%d,%0.2f,%0.2f,%d,%d,%d,%d,%d,%d,%ld,%ld",
+                gotchi_cfg.log_auto_stop_idle_time,
+                gotchi_cfg.log_auto_stop_low_voltage,
+                gotchi_cfg.log_auto_start_duty_cycle,
+                gotchi_cfg.log_interval_hz,
+                gotchi_cfg.multi_esc_mode,
+                gotchi_cfg.multi_esc_ids[0],
+                gotchi_cfg.multi_esc_ids[1],
+                gotchi_cfg.multi_esc_ids[2],
+                gotchi_cfg.multi_esc_ids[3],
+                gotchi_cfg.gps_baud_rate,
+                gotchi_cfg.cfg_version);
+            NRF_LOG_INFO("Parsed Config >%s<", testpoo);
+#endif
+            if(gotchi_cfg.cfg_version == gotchi_cfg_user.cfg_version)
+            {
+                gotchi_cfg_user = gotchi_cfg;
+                user_cfg_set();
+                sprintf((char *)command_response_buffer, "setcfg,OK");
+            }
+            else
+            {
+                sprintf((char *)command_response_buffer, "setcfg,ERR,%ld", gotchi_cfg.cfg_version);
+            }
+
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
 
