@@ -2059,8 +2059,6 @@ int main(void) {
 	app_timer_create(&m_telemetry_timer, APP_TIMER_MODE_REPEATED, telemetry_timer_handler);
 	app_timer_start(m_telemetry_timer, APP_TIMER_TICKS(1000 / gotchi_cfg_user.log_interval_hz), NULL);
 
-	//TODO: setup timer to request ESC data at user's configured interval
-
 #ifdef NRF52840_XXAA
 	app_usbd_power_events_enable();
 #endif
