@@ -112,6 +112,12 @@ static volatile char datetimestring[ 64 ] = { 0 };
 static volatile bool log_file_active = false;
 static volatile bool write_logdata_now = false;
 
+// Fault tracking
+static uint16_t fault_count = 0;
+#define RECENT_FAULT_LIMIT 12
+static uint8_t recent_faults[RECENT_FAULT_LIMIT] = {0};
+static uint8_t recent_fault_index = 0;
+
 // Piezo
 #define PIN_PIEZO 10
 #include "app_pwm.h"
@@ -681,6 +687,8 @@ void ble_send_logbuffer(unsigned char *data, unsigned int len) {
 static void fus_data_handler(ble_fus_evt_t * p_evt) {
 	if (p_evt->type == BLE_FUS_EVT_RX_DATA) {
 		for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++) {
+			//NRF_LOG_INFO("tx_data[%03d] = 0x%02x", i, p_evt->params.rx_data.p_data[i]);
+			//NRF_LOG_FLUSH();
 			packet_process_byte(p_evt->params.rx_data.p_data[i], PACKET_BLE);
 		}
 	}
@@ -1041,6 +1049,19 @@ void send_status_packet()
 		ble_send_logbuffer(response_buffer, strlen((const char *)response_buffer));
 	}
 }
+
+static bool is_fault_new(uint8_t p_fault_code)
+{
+	for(int i=0; i<recent_fault_index;++i)
+	{
+		if(p_fault_code == recent_faults[i])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 #define FW5_PACKET_LENGTH 73
 static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	// Additionally comparing with FW5_PACKET_LENGTH to safeguard against non-esc communication
@@ -1094,8 +1115,30 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			NRF_LOG_FLUSH();
 		}
 
+		// Fault monitoring
+		if (esc_telemetry.fault_code != 0) {
+			// Track total number of faults seen
+			++fault_count;
+
+			// Track fault codes that have been seen
+			if (is_fault_new(esc_telemetry.fault_code))
+			{
+				recent_faults[recent_fault_index] = esc_telemetry.fault_code;
+				if(recent_fault_index < RECENT_FAULT_LIMIT)
+				{
+					++recent_fault_index;
+				}
+			}
+		}
+
 		++esc_rx_cnt;
 #if HAS_DISPLAY
+		// Update fault code count on display
+		Adafruit_GFX_setCursor(106,16);
+		sprintf(display_text_buffer,"F%02d", recent_fault_index);
+		Adafruit_GFX_print(display_text_buffer);
+
+		// Move dot each time we process an ESC VALUES packet
 		if (esc_rx_cnt % 2 == 0) {
 			Adafruit_GFX_fillCircle(120, 2, 2, WHITE);
 			Adafruit_GFX_fillCircle(110, 2, 2, BLACK);
@@ -1219,8 +1262,8 @@ static void logging_timer_handler(void *p_context) {
 	NRF_LOG_FLUSH();
 
 	// Write GPS status to display
-	Adafruit_GFX_setCursor(65,8);
-	sprintf(display_text_buffer,"GPS %02d S%d%d", hgps.seconds, hgps.is_valid, hgps.fix);
+	Adafruit_GFX_setCursor(64,8);
+	sprintf(display_text_buffer,"GPS %02d S%01d%01d", hgps.seconds, hgps.is_valid, hgps.fix);
 	Adafruit_GFX_print(display_text_buffer);
 	update_display = true;
 
@@ -1434,7 +1477,7 @@ int log_file_stop()
 
 #if HAS_DISPLAY
 		Adafruit_GFX_setCursor(0,16);
-		sprintf(display_text_buffer,"Logging inactive");
+		sprintf(display_text_buffer,"Log inactive");
 		Adafruit_GFX_print(display_text_buffer);
 		update_display = true;
 #endif
@@ -1469,7 +1512,7 @@ void log_file_start()
 		display_file_count();
 #if HAS_DISPLAY
 		Adafruit_GFX_setCursor(0,16);
-		sprintf(display_text_buffer,"Logging active  ");
+		sprintf(display_text_buffer,"Log active  ");
 		Adafruit_GFX_print(display_text_buffer);
 		update_display = true;
 #endif
@@ -1482,7 +1525,7 @@ void log_file_start()
 void update_status_packet(char * buffer)
 {
 	//TODO: Possible status variables: isLogging, bytesSaved, fileStartTime, fileCount
-	sprintf(buffer, "status,OK,%d,", log_file_active);
+	sprintf(buffer, "status,OK,%d,%d,%d", log_file_active, fault_count, recent_fault_index);
 }
 
 
@@ -1570,7 +1613,7 @@ void littlefs_init()
 #if HAS_DISPLAY
 	display_file_count();
 	Adafruit_GFX_setCursor(0,16);
-	sprintf(display_text_buffer,"Logging inactive");
+	sprintf(display_text_buffer,"Log inactive");
 	Adafruit_GFX_print(display_text_buffer);
 	update_display = true;
 #endif
