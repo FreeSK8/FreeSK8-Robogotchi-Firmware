@@ -119,20 +119,184 @@ static uint8_t recent_faults[RECENT_FAULT_LIMIT] = {0};
 static uint8_t recent_fault_index = 0;
 
 // Piezo
+#include "buzzer/nrf_pwm.h"
+#include "buzzer/melody_notes.h"
 #define PIN_PIEZO 10
-#include "app_pwm.h"
-APP_PWM_INSTANCE(PWM1,1);				   // Create the instance "PWM1" using TIMER1.
-static volatile bool ready_flag;			// A flag indicating PWM status.
-void pwm_ready_callback(uint32_t pwm_id)	// PWM callback function
+
+// notes of the moledy followed by the duration.
+// a 4 means a quarter note, 8 an eighteenth , 16 sixteenth, so on
+// !!negative numbers are used to represent dotted notes,
+// so -4 means a dotted quarter note, that is, a quarter plus an eighteenth!!
+const int melody[] = {
+   NOTE_FS5,8, NOTE_FS5,8,NOTE_D5,8, NOTE_B4,8, REST,8, NOTE_B4,8, REST,8, NOTE_E5,8, 
+  REST,8, NOTE_E5,8, REST,8, NOTE_E5,8, NOTE_GS5,8, NOTE_GS5,8, NOTE_A5,8, NOTE_B5,8,
+  NOTE_A5,8, NOTE_A5,8, NOTE_A5,8, NOTE_E5,8, REST,8, NOTE_D5,8, REST,8, NOTE_FS5,8, 
+  REST,8, NOTE_FS5,8, REST,8, NOTE_FS5,8, NOTE_E5,8, NOTE_E5,8, NOTE_FS5,8, NOTE_E5,8,
+  NOTE_FS5,8, NOTE_FS5,8,NOTE_D5,8, NOTE_B4,8, REST,8, NOTE_B4,8, REST,8, NOTE_E5,8, 
+
+  REST,8, NOTE_E5,8, REST,8, NOTE_E5,8, NOTE_GS5,8, NOTE_GS5,8, NOTE_A5,8, NOTE_B5,8,
+  NOTE_A5,8, NOTE_A5,8, NOTE_A5,8, NOTE_E5,8, REST,8, NOTE_D5,8, REST,8, NOTE_FS5,8, 
+  REST,8, NOTE_FS5,8, REST,8, NOTE_FS5,8, NOTE_E5,8, NOTE_E5,8, NOTE_FS5,8, NOTE_E5,8,
+  NOTE_FS5,8, NOTE_FS5,8,NOTE_D5,8, NOTE_B4,8, REST,8, NOTE_B4,8, REST,8, NOTE_E5,8, 
+  REST,8, NOTE_E5,8, REST,8, NOTE_E5,8, NOTE_GS5,8, NOTE_GS5,8, NOTE_A5,8, NOTE_B5,8,
+
+  NOTE_A5,8, NOTE_A5,8, NOTE_A5,8, NOTE_E5,8, REST,8, NOTE_D5,8, REST,8, NOTE_FS5,8, 
+  REST,8, NOTE_FS5,8, REST,8, NOTE_FS5,8, NOTE_E5,8, NOTE_E5,8, NOTE_FS5,8, NOTE_E5,8,
+};
+int tempo=140;
+// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
+// there are two values per note (pitch and duration), so for each note there are four bytes
+int notes=sizeof(melody)/sizeof(melody[0])/2;
+// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
+int wholenote = (60000 * 4) / 140;
+int divider = 0, noteDuration = 0;
+int thisNote = 0;
+bool is_melody_playing = false;
+bool is_melody_playing_pause = false;
+uint32_t melody_next_note = 0;
+
+void set_frequency_and_duty_cycle(uint32_t frequency, uint32_t duty_cycle_percent)
 {
-	ready_flag = true;
+    nrf_pwm_set_max_value((16000000 + (frequency / 2)) / frequency);
+    nrf_pwm_set_value(0, (16000000 / frequency) * duty_cycle_percent / 100);
 }
-//TODO: Let's make the pizeo tones non blocking
-void beep_speaker(int duration_ms, int duty_haha_duty)
+
+void melody_init(void)
 {
-	while (app_pwm_channel_duty_set(&PWM1, 0, duty_haha_duty) == NRF_ERROR_BUSY){}
+	tempo=140;
+	// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
+	// there are two values per note (pitch and duration), so for each note there are four bytes
+	notes=sizeof(melody)/sizeof(melody[0])/2;
+	// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
+	wholenote = (60000 * 4) / tempo;
+	divider = 0;
+	noteDuration = 0;
+
+	is_melody_playing = false;
+}
+
+uint32_t app_timer_ms(uint32_t ticks)
+{
+	// eg. (7 + 1) * 1000 / 32768
+	//   = 8000 / 32768
+	//   = 0.24414062
+	float numerator = ((float)0/*APP_TIMER_PRESCALER*/ + 1.0f) * 1000.0f;
+	float denominator = (float)APP_TIMER_CLOCK_FREQ;
+	float ms_per_tick = numerator / denominator;
+
+	uint32_t ms = ms_per_tick * ticks;
+
+	return ms;
+}
+
+uint32_t millis(void)
+{
+	return app_timer_ms(app_timer_cnt_get());
+}
+void melody_play(void)
+{
+	is_melody_playing = true;
+	melody_next_note = millis();
+}
+void melody_step(void)
+{
+	if (is_melody_playing)
+	{
+		// Check if we've reached the end
+		if ((thisNote >= notes *2))
+		{
+			thisNote = 0;
+			is_melody_playing = false;
+			set_frequency_and_duty_cycle(420, 0);
+			NRF_LOG_INFO("end of melody");
+			NRF_LOG_FLUSH();
+			return;
+		}
+
+		// Check if it's time to play the next note
+		uint32_t now = millis();
+		if (now >= melody_next_note)
+		{
+			// calculates the duration of each note
+			divider = melody[thisNote + 1];
+			if (divider > 0) {
+				// regular note, just proceed
+				noteDuration = (wholenote) / divider;
+			} else if (divider < 0) {
+				// dotted notes are represented with negative durations!!
+				noteDuration = (wholenote) / abs(divider);
+				noteDuration *= 1.5; // increases the duration in half for dotted notes
+			}
+
+			if (is_melody_playing_pause)
+			{
+				// stop the waveform generation before the next note.
+				set_frequency_and_duty_cycle((uint32_t)(melody[thisNote]), 0);
+				melody_next_note = now + (noteDuration * 0.1);
+				is_melody_playing_pause = false; // Set to false so we play a note on the next step
+				thisNote += 2; // Increment current note by 1 (note + duration)
+			}
+			else
+			{
+				// we only play the note for 90% of the duration, leaving 10% as a pause
+				set_frequency_and_duty_cycle((uint32_t)(melody[thisNote]), 50);
+				melody_next_note = now + (noteDuration * 0.9);
+				is_melody_playing_pause = true; // Set to true so we pause on the next step
+			}
+		}
+	}
+}
+
+void buzzer_init(void)
+{
+    nrf_pwm_config_t pwm_config =
+		{.num_channels  = 1,
+		.gpio_num       = {PIN_PIEZO},
+		.ppi_channel    = {0,1,2,3,4,5},
+		.gpiote_channel = {0,1},
+		.mode           = PWM_MODE_BUZZER_255};
+
+    nrf_pwm_init(&pwm_config);
+
+	while(false)
+	{
+		// iterate over the notes of the melody. 
+		// Remember, the array is twice the number of notes (notes + durations)
+		for (thisNote = 0; thisNote < notes * 2; thisNote = thisNote + 2) {
+
+			// calculates the duration of each note
+			divider = melody[thisNote + 1];
+			if (divider > 0) {
+			// regular note, just proceed
+			noteDuration = (wholenote) / divider;
+			} else if (divider < 0) {
+			// dotted notes are represented with negative durations!!
+			noteDuration = (wholenote) / abs(divider);
+			noteDuration *= 1.5; // increases the duration in half for dotted notes
+			}
+
+			// we only play the note for 90% of the duration, leaving 10% as a pause
+			set_frequency_and_duty_cycle((uint32_t)(melody[thisNote]), 50); //tone(buzzer, melody[thisNote], noteDuration*0.9);
+
+			// Wait for the specief duration before playing the next note.
+			nrf_delay_ms(noteDuration*0.9); //delay(noteDuration);
+
+			// stop the waveform generation before the next note.
+			set_frequency_and_duty_cycle((uint32_t)(melody[thisNote]), 0);//noTone(buzzer);
+			nrf_delay_ms(noteDuration*0.1); //delay(noteDuration);
+
+			nrf_gpio_pin_toggle(13); //LED
+		}
+	}
+
+}
+
+//TODO: replace uses of beep_speaker_blocking
+void beep_speaker_blocking(int duration_ms, int duty_haha_duty)
+{
+	set_frequency_and_duty_cycle((uint32_t)3100, 50);
 	nrf_delay_ms(duration_ms);
-	while (app_pwm_channel_duty_set(&PWM1, 0, 0) == NRF_ERROR_BUSY){}
+	set_frequency_and_duty_cycle((uint32_t)3100, 0);
 }
 
 // Button input
@@ -538,6 +702,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                              p_evt->conn_handle,
                              p_evt->params.conn_sec_succeeded.procedure);
 				is_connection_secure = true;
+				melody_play();
 				// Notify user connection successful
 				Adafruit_GFX_setCursor(64, 0);
 				Adafruit_GFX_print("BLE OK");
@@ -1155,7 +1320,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	if (log_file_active) {
 		if(esc_telemetry.v_in < gotchi_cfg_user.log_auto_stop_low_voltage) {
 			log_file_stop();
-			beep_speaker(50,50);
+			beep_speaker_blocking(50,50);
 			NRF_LOG_INFO("Logging stopped due to power drop");
 			NRF_LOG_FLUSH();
 			send_status_packet();
@@ -1163,7 +1328,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			log_file_stop();
 			NRF_LOG_INFO("Logging stopped due to inactivity");
 			NRF_LOG_FLUSH();
-			beep_speaker(50,50);
+			beep_speaker_blocking(50,50);
 			send_status_packet();
 		} else if (fabs(esc_telemetry.duty_now) > gotchi_cfg_user.log_auto_start_duty_cycle) {
 			// We are moving while logging. Keep it up!
@@ -1657,15 +1822,8 @@ void user_cfg_get(void)
 	}
 }
 
-void pwm_init(void)  
-{
-	app_pwm_config_t pwm1_cfg = APP_PWM_DEFAULT_CONFIG_1CH(240L, PIN_PIEZO);
-	pwm1_cfg.pin_polarity[0] = APP_PWM_POLARITY_ACTIVE_HIGH;
+////////////
 
-	APP_ERROR_CHECK(app_pwm_init(&PWM1,&pwm1_cfg,pwm_ready_callback));
-
-	app_pwm_enable(&PWM1);
-}
 
 #if HAS_DISPLAY
 // Dont ask
@@ -1780,7 +1938,7 @@ void play_game(){
 			d_jump_t = 1;
 			d_jump=5;
 
-			beep_speaker(40, 50);
+			beep_speaker_blocking(40, 50);
 
 		} else if (d_jump_t) {
 			++d_jump_t;
@@ -1814,9 +1972,9 @@ void play_game(){
 
 		if (d_tumble_t) {
 			if (d_tumble_t == 1) {
-				beep_speaker(40,10);
+				beep_speaker_blocking(40,10);
 			} else if (d_tumble_t == 6) {
-				beep_speaker(200,90);
+				beep_speaker_blocking(200,90);
 			}
 
 			++d_tumble_t;
@@ -2011,8 +2169,8 @@ int main(void) {
 #endif
 
 	// Initialize PWM for piezo output
-	pwm_init();
-	beep_speaker(75,50); //Play tone blocking, allowing time for OLED to init
+	buzzer_init();
+	beep_speaker_blocking(75,50); //Play tone blocking, allowing time for OLED to init
 
 	// Init I2C for RTC and OLED
 	ret_code_t err_code = twi_master_init();
@@ -2073,6 +2231,8 @@ int main(void) {
 
 	// Init GPS after user configuration are loaded
 	gps_init();
+
+melody_init();
 
 	// Turn off LED when robogotchi specific init is complete
 	nrf_gpio_pin_clear(LED_PIN);
@@ -2142,6 +2302,9 @@ int main(void) {
 			SSD1306_display();
 		}
 #endif
+
+		melody_step();
+
 		sd_app_evt_wait();
 	}
 }

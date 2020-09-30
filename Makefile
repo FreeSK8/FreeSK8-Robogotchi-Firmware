@@ -147,7 +147,8 @@ SRC_FILES += \
   $(SDK_ROOT)/components/ble/peer_manager/pm_buffer.c \
   $(SDK_ROOT)/components/libraries/fds/fds.c \
   $(SDK_ROOT)/components/libraries/fstorage/nrf_fstorage.c \
-  $(SDK_ROOT)/components/libraries/fstorage/nrf_fstorage_sd.c
+  $(SDK_ROOT)/components/libraries/fstorage/nrf_fstorage_sd.c \
+  buzzer/nrf_pwm.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \
@@ -287,6 +288,7 @@ INC_FOLDERS += \
   uart_gps \
   lwgps/src/include/ \
   $(SDK_ROOT)/components/ble/nrf_ble_gq/ \
+  buzzer/ \
 
 # Libraries common to all targets
 LIB_FILES += \
