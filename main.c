@@ -123,11 +123,40 @@ static uint8_t recent_fault_index = 0;
 #include "buzzer/melody_notes.h"
 #define PIN_PIEZO 10
 
+int melody2[] = {
+
+  // Never Gonna Give You Up - Rick Astley
+  // Score available at https://musescore.com/chlorondria_5/never-gonna-give-you-up_alto-sax
+  // Arranged by Chlorondria 
+  NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
+
+  NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
+  NOTE_E5,-8, NOTE_E5,-8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
+  NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8, 
+
+  NOTE_E5,4, NOTE_D5,2, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16, //40
+  NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
+  NOTE_A5,4, NOTE_CS5,8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
+  NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8,  
+  NOTE_E5,4, NOTE_D5,2, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
+
+  NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16, //45
+  NOTE_A5,4, NOTE_CS5,8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
+  NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8,  
+  NOTE_E5,4, NOTE_D5,2, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
+  NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16, //45
+
+  NOTE_A5,4, NOTE_CS5,8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
+  NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8, 
+
+  NOTE_E5,4, NOTE_D5,2, REST,4
+};
+int tempo2 = 114;
 // notes of the moledy followed by the duration.
 // a 4 means a quarter note, 8 an eighteenth , 16 sixteenth, so on
 // !!negative numbers are used to represent dotted notes,
 // so -4 means a dotted quarter note, that is, a quarter plus an eighteenth!!
-const int melody[] = {
+const int melody1[] = {
    NOTE_FS5,8, NOTE_FS5,8,NOTE_D5,8, NOTE_B4,8, REST,8, NOTE_B4,8, REST,8, NOTE_E5,8, 
   REST,8, NOTE_E5,8, REST,8, NOTE_E5,8, NOTE_GS5,8, NOTE_GS5,8, NOTE_A5,8, NOTE_B5,8,
   NOTE_A5,8, NOTE_A5,8, NOTE_A5,8, NOTE_E5,8, REST,8, NOTE_D5,8, REST,8, NOTE_FS5,8, 
@@ -143,36 +172,24 @@ const int melody[] = {
   NOTE_A5,8, NOTE_A5,8, NOTE_A5,8, NOTE_E5,8, REST,8, NOTE_D5,8, REST,8, NOTE_FS5,8, 
   REST,8, NOTE_FS5,8, REST,8, NOTE_FS5,8, NOTE_E5,8, NOTE_E5,8, NOTE_FS5,8, NOTE_E5,8,
 };
-int tempo=140;
+int tempo1=140;
 // sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
 // there are two values per note (pitch and duration), so for each note there are four bytes
-int notes=sizeof(melody)/sizeof(melody[0])/2;
+int notes=0;
 // this calculates the duration of a whole note in ms (60s/tempo)*4 beats
-int wholenote = (60000 * 4) / 140;
-int divider = 0, noteDuration = 0;
+int wholenote = 0;
+int divider = 0;
+int noteDuration = 0;
 int thisNote = 0;
 bool is_melody_playing = false;
 bool is_melody_playing_pause = false;
 uint32_t melody_next_note = 0;
+int *melody;
 
 void set_frequency_and_duty_cycle(uint32_t frequency, uint32_t duty_cycle_percent)
 {
     nrf_pwm_set_max_value((16000000 + (frequency / 2)) / frequency);
     nrf_pwm_set_value(0, (16000000 / frequency) * duty_cycle_percent / 100);
-}
-
-void melody_init(void)
-{
-	tempo=140;
-	// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
-	// there are two values per note (pitch and duration), so for each note there are four bytes
-	notes=sizeof(melody)/sizeof(melody[0])/2;
-	// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
-	wholenote = (60000 * 4) / tempo;
-	divider = 0;
-	noteDuration = 0;
-
-	is_melody_playing = false;
 }
 
 uint32_t app_timer_ms(uint32_t ticks)
@@ -193,11 +210,38 @@ uint32_t millis(void)
 {
 	return app_timer_ms(app_timer_cnt_get());
 }
-void melody_play(void)
+void melody_play(int index)
 {
+	switch (index)
+	{
+		case 0:
+			melody = (int*)&melody1;
+			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
+			// there are two values per note (pitch and duration), so for each note there are four bytes
+			notes=sizeof(melody1)/sizeof(melody1[0])/2;
+			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
+			wholenote = (60000 * 4) / tempo1;
+		break;
+		case 1:
+			melody = (int*)&melody2;
+			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
+			// there are two values per note (pitch and duration), so for each note there are four bytes
+			notes=sizeof(melody2)/sizeof(melody2[0])/2;
+			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
+			wholenote = (60000 * 4) / tempo2;
+		break;
+		default:
+		//TODO: add default melody
+		break;
+	}
+
+	divider = 0;
+	noteDuration = 0;
+	thisNote = 0; // Play from the beginning
 	is_melody_playing = true;
 	melody_next_note = millis();
 }
+
 void melody_step(void)
 {
 	if (is_melody_playing)
@@ -702,7 +746,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                              p_evt->conn_handle,
                              p_evt->params.conn_sec_succeeded.procedure);
 				is_connection_secure = true;
-				melody_play();
+				melody_play(0);
 				// Notify user connection successful
 				Adafruit_GFX_setCursor(64, 0);
 				Adafruit_GFX_print("BLE OK");
@@ -1293,6 +1337,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				{
 					++recent_fault_index;
 				}
+				melody_play(1); // Alert user
 			}
 		}
 
@@ -2231,8 +2276,6 @@ int main(void) {
 
 	// Init GPS after user configuration are loaded
 	gps_init();
-
-melody_init();
 
 	// Turn off LED when robogotchi specific init is complete
 	nrf_gpio_pin_clear(LED_PIN);
