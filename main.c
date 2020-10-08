@@ -437,7 +437,11 @@ const struct gotchi_configuration gotchi_cfg_default = {
 
 	.gps_baud_rate = NRF_UARTE_BAUDRATE_9600,
 
-	.cfg_version = 1 //Expected configuration version
+	.alert_low_voltage = 0.0,
+	.alert_esc_temp = 0.0,
+	.alert_motor_temp = 0.0,
+
+	.cfg_version = 2 // Expected configuration version, increment with changes to struct
 };
 
 struct gotchi_configuration gotchi_cfg_user = {
@@ -450,6 +454,10 @@ struct gotchi_configuration gotchi_cfg_user = {
 	.multi_esc_ids = {0,0,0,0},
 
 	.gps_baud_rate = NRF_UARTE_BAUDRATE_9600,
+
+	.alert_low_voltage = 0.0,
+	.alert_esc_temp = 0.0,
+	.alert_motor_temp = 0.0,
 
 	.cfg_version = 0
 };
@@ -1352,7 +1360,17 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			}
 
 			// Alert user, don't interrupt current melody
-			melody_play(MELODY_GIVEYOUUP, false); // Play fault sound
+			melody_play(MELODY_GIVEYOUUP, false); // Play fault sound, do not interrupt
+		}
+
+		if (gotchi_cfg_user.alert_low_voltage != 0.0 && esc_telemetry.v_in < gotchi_cfg_user.alert_low_voltage) {
+			melody_play(MELODY_LIONSLEEPS, false); // Play fault sound, do not interrupt
+		}
+		if (gotchi_cfg_user.alert_esc_temp != 0.0 && esc_telemetry.temp_mos > gotchi_cfg_user.alert_esc_temp) {
+			melody_play(MELODY_VAMPIRE, false); // Play fault sound, do not interrupt
+		}
+		if (gotchi_cfg_user.alert_motor_temp != 0.0 && esc_telemetry.temp_motor > gotchi_cfg_user.alert_motor_temp) {
+			melody_play(MELODY_BACH, false); // Play fault sound, do not interrupt
 		}
 
 		++esc_rx_cnt;

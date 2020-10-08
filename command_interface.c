@@ -202,12 +202,12 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.1.1,alpha");
+            sprintf((char *)command_response_buffer, "version,0.2.0,alpha");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
         {
-            sprintf((char *)command_response_buffer, "getcfg,%d,%0.2f,%0.2f,%d,%d,%d,%d,%d,%d,%ld,%ld",
+            sprintf((char *)command_response_buffer, "getcfg,%d,%0.2f,%0.2f,%d,%d,%d,%d,%d,%d,%ld,%0.1f,%0.1f,%0.1f,%ld",
                 gotchi_cfg_user.log_auto_stop_idle_time,
                 gotchi_cfg_user.log_auto_stop_low_voltage,
                 gotchi_cfg_user.log_auto_start_duty_cycle,
@@ -218,6 +218,9 @@ void command_interface_process_byte(char incoming)
                 gotchi_cfg_user.multi_esc_ids[2],
                 gotchi_cfg_user.multi_esc_ids[3],
                 gotchi_cfg_user.gps_baud_rate,
+                gotchi_cfg_user.alert_low_voltage,
+                gotchi_cfg_user.alert_esc_temp,
+                gotchi_cfg_user.alert_motor_temp,
                 gotchi_cfg_user.cfg_version
             );
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
@@ -235,6 +238,9 @@ void command_interface_process_byte(char incoming)
             gotchi_cfg.multi_esc_ids[2] = 0;
             gotchi_cfg.multi_esc_ids[3] = 0;
             gotchi_cfg.gps_baud_rate = 0;
+            gotchi_cfg.alert_low_voltage = 0.0;
+            gotchi_cfg.alert_esc_temp = 0.0;
+            gotchi_cfg.alert_motor_temp = 0.0;
             gotchi_cfg.cfg_version = 0;
             char * usr_cfg = command_input_buffer + 7;
             NRF_LOG_INFO("setcfg command received: %s", usr_cfg);
@@ -260,6 +266,12 @@ void command_interface_process_byte(char incoming)
             gotchi_cfg.multi_esc_ids[3] = atoi(field);
             field = strtok(NULL, ",");
             gotchi_cfg.gps_baud_rate = atoi(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.alert_low_voltage = atof(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.alert_esc_temp = atof(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.alert_motor_temp = atof(field);
             field = strtok(NULL, ",");
             gotchi_cfg.cfg_version = atoi(field);
 #ifdef P00PIES

@@ -12,6 +12,11 @@ struct gotchi_configuration {
 							//4 = Quad ESC Mode
 	uint8_t multi_esc_ids[4];
 	uint32_t gps_baud_rate;
+
+	float alert_low_voltage;
+	float alert_esc_temp;
+	float alert_motor_temp;
+
 	uint32_t cfg_version;
 };
 
