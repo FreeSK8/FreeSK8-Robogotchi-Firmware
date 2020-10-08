@@ -123,64 +123,14 @@ static uint8_t recent_fault_index = 0;
 #include "buzzer/melody_notes.h"
 #define PIN_PIEZO 10
 
-int melody2[] = {
-
-  // Never Gonna Give You Up - Rick Astley
-  // Score available at https://musescore.com/chlorondria_5/never-gonna-give-you-up_alto-sax
-  // Arranged by Chlorondria 
-  NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-
-  NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-  NOTE_E5,-8, NOTE_E5,-8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-  NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8, 
-
-  NOTE_E5,4, NOTE_D5,2, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16, //40
-  NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-  NOTE_A5,4, NOTE_CS5,8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-  NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8,  
-  NOTE_E5,4, NOTE_D5,2, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-
-  NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16, //45
-  NOTE_A5,4, NOTE_CS5,8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-  NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8,  
-  NOTE_E5,4, NOTE_D5,2, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-  NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16, //45
-
-  NOTE_A5,4, NOTE_CS5,8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-  NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8, 
-
-  NOTE_E5,4, NOTE_D5,2, REST,4
-};
-int tempo2 = 114;
-// notes of the moledy followed by the duration.
-// a 4 means a quarter note, 8 an eighteenth , 16 sixteenth, so on
-// !!negative numbers are used to represent dotted notes,
-// so -4 means a dotted quarter note, that is, a quarter plus an eighteenth!!
-const int melody1[] = {
-   NOTE_FS5,8, NOTE_FS5,8,NOTE_D5,8, NOTE_B4,8, REST,8, NOTE_B4,8, REST,8, NOTE_E5,8, 
-  REST,8, NOTE_E5,8, REST,8, NOTE_E5,8, NOTE_GS5,8, NOTE_GS5,8, NOTE_A5,8, NOTE_B5,8,
-  NOTE_A5,8, NOTE_A5,8, NOTE_A5,8, NOTE_E5,8, REST,8, NOTE_D5,8, REST,8, NOTE_FS5,8, 
-  REST,8, NOTE_FS5,8, REST,8, NOTE_FS5,8, NOTE_E5,8, NOTE_E5,8, NOTE_FS5,8, NOTE_E5,8,
-  NOTE_FS5,8, NOTE_FS5,8,NOTE_D5,8, NOTE_B4,8, REST,8, NOTE_B4,8, REST,8, NOTE_E5,8, 
-
-  REST,8, NOTE_E5,8, REST,8, NOTE_E5,8, NOTE_GS5,8, NOTE_GS5,8, NOTE_A5,8, NOTE_B5,8,
-  NOTE_A5,8, NOTE_A5,8, NOTE_A5,8, NOTE_E5,8, REST,8, NOTE_D5,8, REST,8, NOTE_FS5,8, 
-  REST,8, NOTE_FS5,8, REST,8, NOTE_FS5,8, NOTE_E5,8, NOTE_E5,8, NOTE_FS5,8, NOTE_E5,8,
-  NOTE_FS5,8, NOTE_FS5,8,NOTE_D5,8, NOTE_B4,8, REST,8, NOTE_B4,8, REST,8, NOTE_E5,8, 
-  REST,8, NOTE_E5,8, REST,8, NOTE_E5,8, NOTE_GS5,8, NOTE_GS5,8, NOTE_A5,8, NOTE_B5,8,
-
-  NOTE_A5,8, NOTE_A5,8, NOTE_A5,8, NOTE_E5,8, REST,8, NOTE_D5,8, REST,8, NOTE_FS5,8, 
-  REST,8, NOTE_FS5,8, REST,8, NOTE_FS5,8, NOTE_E5,8, NOTE_E5,8, NOTE_FS5,8, NOTE_E5,8,
-};
-int tempo1=140;
 // sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
 // there are two values per note (pitch and duration), so for each note there are four bytes
-int notes=0;
+int melody_notes=0;
 // this calculates the duration of a whole note in ms (60s/tempo)*4 beats
-int wholenote = 0;
-int divider = 0;
+int melody_wholenote = 0;
+int melody_divider = 0;
 int noteDuration = 0;
-int thisNote = 0;
+int melody_this_note = 0;
 bool is_melody_playing = false;
 bool is_melody_playing_pause = false;
 uint32_t melody_next_note = 0;
@@ -210,34 +160,95 @@ uint32_t millis(void)
 {
 	return app_timer_ms(app_timer_cnt_get());
 }
-void melody_play(int index)
+
+void melody_play(int index, bool interrupt_melody)
 {
+	if (is_melody_playing && !interrupt_melody)
+	{
+		return;
+	}
 	switch (index)
 	{
-		case 0:
-			melody = (int*)&melody1;
+		case MELODY_TAKEONME:
+			melody = (int*)&melody_takeonme;
 			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
 			// there are two values per note (pitch and duration), so for each note there are four bytes
-			notes=sizeof(melody1)/sizeof(melody1[0])/2;
+			melody_notes=sizeof(melody_takeonme)/sizeof(melody_takeonme[0])/2;
 			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
-			wholenote = (60000 * 4) / tempo1;
+			melody_wholenote = (60000 * 4) / tempo_takeonme;
 		break;
-		case 1:
-			melody = (int*)&melody2;
+		case MELODY_GIVEYOUUP:
+			melody = (int*)&melody_giveyouup;
 			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
 			// there are two values per note (pitch and duration), so for each note there are four bytes
-			notes=sizeof(melody2)/sizeof(melody2[0])/2;
+			melody_notes=sizeof(melody_giveyouup)/sizeof(melody_giveyouup[0])/2;
 			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
-			wholenote = (60000 * 4) / tempo2;
+			melody_wholenote = (60000 * 4) / tempo_giveyouup;
+		break;
+		case MELODY_MII:
+			melody = (int*)&melody_mii;
+			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
+			// there are two values per note (pitch and duration), so for each note there are four bytes
+			melody_notes=sizeof(melody_mii)/sizeof(melody_mii[0])/2;
+			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
+			melody_wholenote = (60000 * 4) / tempo_mii;
+		break;
+		case MELODY_NOKIA:
+			melody = (int*)&melody_nokia;
+			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
+			// there are two values per note (pitch and duration), so for each note there are four bytes
+			melody_notes=sizeof(melody_nokia)/sizeof(melody_nokia[0])/2;
+			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
+			melody_wholenote = (60000 * 4) / tempo_nokia;
+		break;
+		case MELODY_KBDCAT:
+			melody = (int*)&melody_kbdcat;
+			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
+			// there are two values per note (pitch and duration), so for each note there are four bytes
+			melody_notes=sizeof(melody_kbdcat)/sizeof(melody_kbdcat[0])/2;
+			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
+			melody_wholenote = (60000 * 4) / tempo_kbdcat;
+		break;
+		case MELODY_LICK:
+			melody = (int*)&melody_lick;
+			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
+			// there are two values per note (pitch and duration), so for each note there are four bytes
+			melody_notes=sizeof(melody_lick)/sizeof(melody_lick[0])/2;
+			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
+			melody_wholenote = (60000 * 4) / tempo_lick;
+		break;
+		case MELODY_VAMPIRE:
+			melody = (int*)&melody_vampire;
+			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
+			// there are two values per note (pitch and duration), so for each note there are four bytes
+			melody_notes=sizeof(melody_vampire)/sizeof(melody_vampire[0])/2;
+			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
+			melody_wholenote = (60000 * 4) / tempo_vampire;
+		break;
+		case MELODY_BACH:
+			melody = (int*)&melody_bach;
+			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
+			// there are two values per note (pitch and duration), so for each note there are four bytes
+			melody_notes=sizeof(melody_bach)/sizeof(melody_bach[0])/2;
+			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
+			melody_wholenote = (60000 * 4) / tempo_bach;
+		break;
+		case MELODY_LIONSLEEPS:
+			melody = (int*)&melody_lionsleeps;
+			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
+			// there are two values per note (pitch and duration), so for each note there are four bytes
+			melody_notes=sizeof(melody_lionsleeps)/sizeof(melody_lionsleeps[0])/2;
+			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
+			melody_wholenote = (60000 * 4) / tempo_lionsleeps;
 		break;
 		default:
 		//TODO: add default melody
 		break;
 	}
 
-	divider = 0;
+	melody_divider = 0;
 	noteDuration = 0;
-	thisNote = 0; // Play from the beginning
+	melody_this_note = 0; // Play from the beginning
 	is_melody_playing = true;
 	melody_next_note = millis();
 }
@@ -247,9 +258,9 @@ void melody_step(void)
 	if (is_melody_playing)
 	{
 		// Check if we've reached the end
-		if ((thisNote >= notes *2))
+		if ((melody_this_note >= melody_notes *2))
 		{
-			thisNote = 0;
+			melody_this_note = 0;
 			is_melody_playing = false;
 			set_frequency_and_duty_cycle(420, 0);
 			NRF_LOG_INFO("end of melody");
@@ -262,28 +273,28 @@ void melody_step(void)
 		if (now >= melody_next_note)
 		{
 			// calculates the duration of each note
-			divider = melody[thisNote + 1];
-			if (divider > 0) {
+			melody_divider = melody[melody_this_note + 1];
+			if (melody_divider > 0) {
 				// regular note, just proceed
-				noteDuration = (wholenote) / divider;
-			} else if (divider < 0) {
+				noteDuration = (melody_wholenote) / melody_divider;
+			} else if (melody_divider < 0) {
 				// dotted notes are represented with negative durations!!
-				noteDuration = (wholenote) / abs(divider);
+				noteDuration = (melody_wholenote) / abs(melody_divider);
 				noteDuration *= 1.5; // increases the duration in half for dotted notes
 			}
 
 			if (is_melody_playing_pause)
 			{
 				// stop the waveform generation before the next note.
-				set_frequency_and_duty_cycle((uint32_t)(melody[thisNote]), 0);
+				set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 0);
 				melody_next_note = now + (noteDuration * 0.1);
 				is_melody_playing_pause = false; // Set to false so we play a note on the next step
-				thisNote += 2; // Increment current note by 1 (note + duration)
+				melody_this_note += 2; // Increment current note by 1 (note + duration)
 			}
 			else
 			{
 				// we only play the note for 90% of the duration, leaving 10% as a pause
-				set_frequency_and_duty_cycle((uint32_t)(melody[thisNote]), 50);
+				set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 50);
 				melody_next_note = now + (noteDuration * 0.9);
 				is_melody_playing_pause = true; // Set to true so we pause on the next step
 			}
@@ -306,27 +317,27 @@ void buzzer_init(void)
 	{
 		// iterate over the notes of the melody. 
 		// Remember, the array is twice the number of notes (notes + durations)
-		for (thisNote = 0; thisNote < notes * 2; thisNote = thisNote + 2) {
+		for (melody_this_note = 0; melody_this_note < melody_notes * 2; melody_this_note = melody_this_note + 2) {
 
 			// calculates the duration of each note
-			divider = melody[thisNote + 1];
-			if (divider > 0) {
+			melody_divider = melody[melody_this_note + 1];
+			if (melody_divider > 0) {
 			// regular note, just proceed
-			noteDuration = (wholenote) / divider;
-			} else if (divider < 0) {
+			noteDuration = (melody_wholenote) / melody_divider;
+			} else if (melody_divider < 0) {
 			// dotted notes are represented with negative durations!!
-			noteDuration = (wholenote) / abs(divider);
+			noteDuration = (melody_wholenote) / abs(melody_divider);
 			noteDuration *= 1.5; // increases the duration in half for dotted notes
 			}
 
 			// we only play the note for 90% of the duration, leaving 10% as a pause
-			set_frequency_and_duty_cycle((uint32_t)(melody[thisNote]), 50); //tone(buzzer, melody[thisNote], noteDuration*0.9);
+			set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 50); //tone(buzzer, melody[melody_this_note], noteDuration*0.9);
 
 			// Wait for the specief duration before playing the next note.
 			nrf_delay_ms(noteDuration*0.9); //delay(noteDuration);
 
 			// stop the waveform generation before the next note.
-			set_frequency_and_duty_cycle((uint32_t)(melody[thisNote]), 0);//noTone(buzzer);
+			set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 0);//noTone(buzzer);
 			nrf_delay_ms(noteDuration*0.1); //delay(noteDuration);
 
 			nrf_gpio_pin_toggle(13); //LED
@@ -746,7 +757,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                              p_evt->conn_handle,
                              p_evt->params.conn_sec_succeeded.procedure);
 				is_connection_secure = true;
-				melody_play(0);
+				melody_play(MELODY_KBDCAT, true); // Play BLE Success sound
 				// Notify user connection successful
 				Adafruit_GFX_setCursor(64, 0);
 				Adafruit_GFX_print("BLE OK");
@@ -770,6 +781,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
 			Adafruit_GFX_setCursor(64, 0);
 			Adafruit_GFX_print("BLEPIN");
 			update_display = true;
+			melody_play(MELODY_MII, false); // Play BLE Failed sound. Do not interrupt (may happen repeatedly)
             break;
 
         case PM_EVT_PEERS_DELETE_SUCCEEDED:
@@ -1337,8 +1349,10 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				{
 					++recent_fault_index;
 				}
-				melody_play(1); // Alert user
 			}
+
+			// Alert user, don't interrupt current melody
+			melody_play(MELODY_GIVEYOUUP, false); // Play fault sound
 		}
 
 		++esc_rx_cnt;
@@ -1473,6 +1487,7 @@ static void logging_timer_handler(void *p_context) {
 
 	// Write GPS status to display
 	Adafruit_GFX_setCursor(64,8);
+	memset(display_text_buffer,0,sizeof(display_text_buffer));
 	sprintf(display_text_buffer,"GPS %02d S%01d%01d", hgps.seconds, hgps.is_valid, hgps.fix);
 	Adafruit_GFX_print(display_text_buffer);
 	update_display = true;
@@ -2310,6 +2325,8 @@ int main(void) {
 #endif
 
 	advertising_start(false);
+
+	melody_play(MELODY_NOKIA, true); // Play a startup sound
 
 	for (;;) {
 #ifdef NRF52840_XXAA
