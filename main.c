@@ -1508,9 +1508,9 @@ static void logging_timer_handler(void *p_context) {
 
 	// Write GPS status to display
 	Adafruit_GFX_setCursor(64,8);
-	memset(display_text_buffer,0,sizeof(display_text_buffer));
-	sprintf(display_text_buffer,"GPS %02d S%01d%01d", hgps.seconds, hgps.is_valid, hgps.fix);
-	Adafruit_GFX_print(display_text_buffer);
+	char gps_status[11] = {0};
+	sprintf(gps_status,"GPS %02d S%01d%01d", hgps.seconds, hgps.is_valid, hgps.fix);
+	Adafruit_GFX_print(gps_status);
 	update_display = true;
 
 	// If logging is active and GPS is valid and fixed log GPS data
