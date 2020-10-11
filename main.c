@@ -125,16 +125,16 @@ static uint8_t recent_fault_index = 0;
 
 // sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
 // there are two values per note (pitch and duration), so for each note there are four bytes
-int melody_notes=0;
+static int melody_notes=0;
 // this calculates the duration of a whole note in ms (60s/tempo)*4 beats
-int melody_wholenote = 0;
-int melody_divider = 0;
-int noteDuration = 0;
-int melody_this_note = 0;
-bool is_melody_playing = false;
-bool is_melody_playing_pause = false;
-uint32_t melody_next_note = 0;
-int *melody;
+static int melody_wholenote = 0;
+static int melody_divider = 0;
+static int noteDuration = 0;
+static int melody_this_note = 0;
+static bool is_melody_playing = false;
+static bool is_melody_playing_pause = false;
+static uint32_t melody_next_note = 0;
+static int *melody;
 
 void set_frequency_and_duty_cycle(uint32_t frequency, uint32_t duty_cycle_percent)
 {
@@ -251,6 +251,7 @@ void melody_play(int index, bool interrupt_melody)
 	melody_this_note = 0; // Play from the beginning
 	is_melody_playing = true;
 	melody_next_note = millis();
+	nrf_pwm_set_enabled(true);
 }
 
 void melody_step(void)
@@ -262,7 +263,7 @@ void melody_step(void)
 		{
 			melody_this_note = 0;
 			is_melody_playing = false;
-			set_frequency_and_duty_cycle(420, 0);
+			nrf_pwm_set_enabled(false);
 			NRF_LOG_INFO("end of melody");
 			NRF_LOG_FLUSH();
 			return;
@@ -349,9 +350,11 @@ void buzzer_init(void)
 //TODO: replace uses of beep_speaker_blocking
 void beep_speaker_blocking(int duration_ms, int duty_haha_duty)
 {
+	nrf_pwm_set_enabled(true);
 	set_frequency_and_duty_cycle((uint32_t)3100, 50);
 	nrf_delay_ms(duration_ms);
 	set_frequency_and_duty_cycle((uint32_t)3100, 0);
+	nrf_pwm_set_enabled(false);
 }
 
 // Button input
