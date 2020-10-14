@@ -423,6 +423,24 @@ const struct lfs_config cfg = {
     .block_cycles = 500,
 };
 
+// Tracking free space
+static volatile int lfs_percent_free = 0;
+uint8_t lfs_free_space_check(void)
+{
+	int lfs_blocks_allocated = lfs_fs_size(&lfs);
+	//NOTE: Max free space is going to report 99% to preserve OLED screen space
+	lfs_percent_free =  99 - (int)((double)lfs_blocks_allocated / (double)cfg.block_count * 99);
+	NRF_LOG_INFO("FS Blocks Allocated: %ld", lfs_blocks_allocated);
+	NRF_LOG_INFO("FS BlockCount: %d Percentage Free: %d", cfg.block_count, lfs_percent_free);
+	NRF_LOG_FLUSH();
+#if HAS_DISPLAY
+	Adafruit_GFX_setCursor(88,16);
+	sprintf(display_text_buffer,"%02d%%", lfs_percent_free);
+	Adafruit_GFX_print(display_text_buffer);
+	update_display = true;
+#endif
+	return lfs_percent_free;
+}
 ///////////////////
 
 void user_cfg_set(void);
@@ -1096,7 +1114,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
 
 	break;
 	default:
-		NRF_LOG_INFO("******************************************************p_ble_evt->header.evt_id %ld", p_ble_evt->header.evt_id);
+		NRF_LOG_INFO("No handler for: p_ble_evt->header.evt_id %ld", p_ble_evt->header.evt_id);
 		NRF_LOG_FLUSH();
 		// No implementation needed.
 		break;
@@ -1530,6 +1548,13 @@ static void logging_timer_handler(void *p_context) {
 	if (log_file_active && currentTime % 60 == 0)
 	{
 		lfs_file_sync(&lfs, &file);
+		//TODO: check for free space
+		if (lfs_free_space_check() < 10) //TODO: define percentage free limit
+		{
+			//TODO: alert user
+			// Stop logging to prevent corruption
+			log_file_stop();
+		}
 	}
 }
 
@@ -1734,13 +1759,24 @@ int log_file_stop()
 
 void log_file_start()
 {
+	// Flag the board as in motion to begin the countdown to idle
 	lastTimeBoardMoved = currentTime;
 
+	// Stop a previous log if in progress
 	if (log_file_active)
 	{
 		log_file_stop();
 	}
 
+	//TODO: check for free space
+	if (lfs_free_space_check() < 10) //TODO: define percentage free limit
+	{
+		//TODO: alert user
+		// Do not log
+		return;
+	}
+
+	// Create the new file
 	char filename[64];
 	strftime( filename, 64, "/FreeSK8Logs/%Y-%m-%dT%H:%M:%S", tmTime );
 
@@ -1771,7 +1807,7 @@ void log_file_start()
 void update_status_packet(char * buffer)
 {
 	//TODO: Possible status variables: isLogging, bytesSaved, fileStartTime, fileCount
-	sprintf(buffer, "status,OK,%d,%d,%d", log_file_active, fault_count, recent_fault_index);
+	sprintf(buffer, "status,OK,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free);
 }
 
 
@@ -2306,6 +2342,7 @@ int main(void) {
 	// QSPI & LittleFS filesystem initilization
 	qspi_init();
 	littlefs_init();
+	lfs_free_space_check();
 
 	// Load the user configuration from filesystem
 	user_cfg_get();
