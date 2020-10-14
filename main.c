@@ -1509,7 +1509,7 @@ static void logging_timer_handler(void *p_context) {
 	// Write GPS status to display
 	Adafruit_GFX_setCursor(64,8);
 	char gps_status[11] = {0};
-	sprintf(gps_status,"GPS %02d S%01d%01d", hgps.seconds, hgps.is_valid, hgps.fix);
+	snprintf(gps_status, sizeof(gps_status), "GPS %02d S%01d%01d", hgps.seconds, hgps.is_valid, hgps.fix);
 	Adafruit_GFX_print(gps_status);
 	update_display = true;
 
