@@ -1732,12 +1732,22 @@ void qspi_init()
 
 	err_code = nrf_drv_qspi_init(&config, NULL, NULL);
 	NRF_LOG_INFO("QSPI driver init response %d", err_code);
-	APP_ERROR_CHECK(err_code);
+	NRF_LOG_FLUSH();
+	if(err_code < 0)
+	{
+#if HAS_DISPLAY
+		Adafruit_GFX_setCursor(0,8);
+		sprintf(display_text_buffer,"QSPI Init Failed");
+		Adafruit_GFX_print(display_text_buffer);
+		SSD1306_display();
+#endif
+		while(1);
+	}
+
 	NRF_LOG_INFO("QSPI driver initialized");
+	NRF_LOG_FLUSH();
 
 	configure_memory();
-
-	NRF_LOG_FLUSH();
 }
 
 int log_file_stop()
