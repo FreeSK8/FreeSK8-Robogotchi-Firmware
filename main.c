@@ -480,7 +480,7 @@ uint8_t lfs_free_space_check(void)
 	update_display = true;
 #endif
 
-	if (gotchi_cfg_user.alert_storage_at_capacity != 0 && 99 - lfs_percent_free > gotchi_cfg_user.alert_storage_at_capacity)
+	if (gotchi_cfg_user.alert_storage_at_capacity != 0 && 99 - lfs_percent_free >= gotchi_cfg_user.alert_storage_at_capacity)
 	{
 		melody_play(MELODY_LICK, false); // Play storage at capacity alert, do not interrupt
 	}
