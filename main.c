@@ -84,13 +84,20 @@ const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
 
 #include "lwgps/lwgps.h"
 
-/* GPS handle */
+////////////////////////////////////////
+// GPS handle
+////////////////////////////////////////
 lwgps_t hgps;
 
+////////////////////////////////////////
+// ESC data
+////////////////////////////////////////
 static volatile TELEMETRY_DATA esc_telemetry;
 static volatile int esc_rx_cnt = 0;
 
+////////////////////////////////////////
 // Display
+////////////////////////////////////////
 #define HAS_DISPLAY 1
 #if HAS_DISPLAY
 static volatile bool update_display = false; // Set to true to trigger I2C communication with OLED
@@ -103,7 +110,9 @@ void i2c_oled_comm_handle(uint8_t hdl_address, uint8_t *hdl_buffer, size_t hdl_b
 }
 #endif
 
+////////////////////////////////////////
 // Time tracking
+////////////////////////////////////////
 #include "rtc.h"
 volatile bool update_rtc = false; // Set to true to trigger I2C communication with RTC module
 struct tm * tmTime;
@@ -112,24 +121,25 @@ static volatile char datetimestring[ 64 ] = { 0 };
 static volatile bool log_file_active = false;
 static volatile bool write_logdata_now = false;
 
+////////////////////////////////////////
 // Fault tracking
+////////////////////////////////////////
 static uint16_t fault_count = 0;
 #define RECENT_FAULT_LIMIT 12
 static uint8_t recent_faults[RECENT_FAULT_LIMIT] = {0};
 static uint8_t recent_fault_index = 0;
 
+////////////////////////////////////////
 // Piezo
+////////////////////////////////////////
 #include "buzzer/nrf_pwm.h"
 #include "buzzer/melody_notes.h"
 #define PIN_PIEZO 10
 
-// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
-// there are two values per note (pitch and duration), so for each note there are four bytes
 static int melody_notes=0;
-// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 static int melody_wholenote = 0;
 static int melody_divider = 0;
-static int noteDuration = 0;
+static int melody_note_duration = 0;
 static int melody_this_note = 0;
 static bool is_melody_playing = false;
 static bool is_melody_playing_pause = false;
@@ -147,7 +157,7 @@ uint32_t app_timer_ms(uint32_t ticks)
 	// eg. (7 + 1) * 1000 / 32768
 	//   = 8000 / 32768
 	//   = 0.24414062
-	float numerator = ((float)0/*APP_TIMER_PRESCALER*/ + 1.0f) * 1000.0f;
+	float numerator = ((float)0/*TODO: APP_TIMER_PRESCALER*/ + 1.0f) * 1000.0f;
 	float denominator = (float)APP_TIMER_CLOCK_FREQ;
 	float ms_per_tick = numerator / denominator;
 
@@ -179,66 +189,42 @@ void melody_play(int index, bool interrupt_melody)
 		break;
 		case MELODY_GIVEYOUUP:
 			melody = (int*)&melody_giveyouup;
-			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
-			// there are two values per note (pitch and duration), so for each note there are four bytes
 			melody_notes=sizeof(melody_giveyouup)/sizeof(melody_giveyouup[0])/2;
-			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 			melody_wholenote = (60000 * 4) / tempo_giveyouup;
 		break;
 		case MELODY_MII:
 			melody = (int*)&melody_mii;
-			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
-			// there are two values per note (pitch and duration), so for each note there are four bytes
 			melody_notes=sizeof(melody_mii)/sizeof(melody_mii[0])/2;
-			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 			melody_wholenote = (60000 * 4) / tempo_mii;
 		break;
 		case MELODY_NOKIA:
 			melody = (int*)&melody_nokia;
-			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
-			// there are two values per note (pitch and duration), so for each note there are four bytes
 			melody_notes=sizeof(melody_nokia)/sizeof(melody_nokia[0])/2;
-			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 			melody_wholenote = (60000 * 4) / tempo_nokia;
 		break;
 		case MELODY_KBDCAT:
 			melody = (int*)&melody_kbdcat;
-			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
-			// there are two values per note (pitch and duration), so for each note there are four bytes
 			melody_notes=sizeof(melody_kbdcat)/sizeof(melody_kbdcat[0])/2;
-			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 			melody_wholenote = (60000 * 4) / tempo_kbdcat;
 		break;
 		case MELODY_LICK:
 			melody = (int*)&melody_lick;
-			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
-			// there are two values per note (pitch and duration), so for each note there are four bytes
 			melody_notes=sizeof(melody_lick)/sizeof(melody_lick[0])/2;
-			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 			melody_wholenote = (60000 * 4) / tempo_lick;
 		break;
 		case MELODY_VAMPIRE:
 			melody = (int*)&melody_vampire;
-			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
-			// there are two values per note (pitch and duration), so for each note there are four bytes
 			melody_notes=sizeof(melody_vampire)/sizeof(melody_vampire[0])/2;
-			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 			melody_wholenote = (60000 * 4) / tempo_vampire;
 		break;
 		case MELODY_BACH:
 			melody = (int*)&melody_bach;
-			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
-			// there are two values per note (pitch and duration), so for each note there are four bytes
 			melody_notes=sizeof(melody_bach)/sizeof(melody_bach[0])/2;
-			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 			melody_wholenote = (60000 * 4) / tempo_bach;
 		break;
 		case MELODY_LIONSLEEPS:
 			melody = (int*)&melody_lionsleeps;
-			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
-			// there are two values per note (pitch and duration), so for each note there are four bytes
 			melody_notes=sizeof(melody_lionsleeps)/sizeof(melody_lionsleeps[0])/2;
-			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 			melody_wholenote = (60000 * 4) / tempo_lionsleeps;
 		break;
 		default:
@@ -247,7 +233,7 @@ void melody_play(int index, bool interrupt_melody)
 	}
 
 	melody_divider = 0;
-	noteDuration = 0;
+	melody_note_duration = 0;
 	melody_this_note = 0; // Play from the beginning
 	is_melody_playing = true;
 	melody_next_note = millis();
@@ -277,18 +263,18 @@ void melody_step(void)
 			melody_divider = melody[melody_this_note + 1];
 			if (melody_divider > 0) {
 				// regular note, just proceed
-				noteDuration = (melody_wholenote) / melody_divider;
+				melody_note_duration = (melody_wholenote) / melody_divider;
 			} else if (melody_divider < 0) {
 				// dotted notes are represented with negative durations!!
-				noteDuration = (melody_wholenote) / abs(melody_divider);
-				noteDuration *= 1.5; // increases the duration in half for dotted notes
+				melody_note_duration = (melody_wholenote) / abs(melody_divider);
+				melody_note_duration *= 1.5; // increases the duration in half for dotted notes
 			}
 
 			if (is_melody_playing_pause)
 			{
 				// stop the waveform generation before the next note.
 				set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 0);
-				melody_next_note = now + (noteDuration * 0.1);
+				melody_next_note = now + (melody_note_duration * 0.1);
 				is_melody_playing_pause = false; // Set to false so we play a note on the next step
 				melody_this_note += 2; // Increment current note by 1 (note + duration)
 			}
@@ -296,7 +282,7 @@ void melody_step(void)
 			{
 				// we only play the note for 90% of the duration, leaving 10% as a pause
 				set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 50);
-				melody_next_note = now + (noteDuration * 0.9);
+				melody_next_note = now + (melody_note_duration * 0.9);
 				is_melody_playing_pause = true; // Set to true so we pause on the next step
 			}
 		}
@@ -324,22 +310,22 @@ void buzzer_init(void)
 			melody_divider = melody[melody_this_note + 1];
 			if (melody_divider > 0) {
 			// regular note, just proceed
-			noteDuration = (melody_wholenote) / melody_divider;
+			melody_note_duration = (melody_wholenote) / melody_divider;
 			} else if (melody_divider < 0) {
 			// dotted notes are represented with negative durations!!
-			noteDuration = (melody_wholenote) / abs(melody_divider);
-			noteDuration *= 1.5; // increases the duration in half for dotted notes
+			melody_note_duration = (melody_wholenote) / abs(melody_divider);
+			melody_note_duration *= 1.5; // increases the duration in half for dotted notes
 			}
 
 			// we only play the note for 90% of the duration, leaving 10% as a pause
 			set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 50); //tone(buzzer, melody[melody_this_note], noteDuration*0.9);
 
 			// Wait for the specief duration before playing the next note.
-			nrf_delay_ms(noteDuration*0.9); //delay(noteDuration);
+			nrf_delay_ms(melody_note_duration*0.9); //delay(noteDuration);
 
 			// stop the waveform generation before the next note.
 			set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 0);//noTone(buzzer);
-			nrf_delay_ms(noteDuration*0.1); //delay(noteDuration);
+			nrf_delay_ms(melody_note_duration*0.1); //delay(noteDuration);
 
 			nrf_gpio_pin_toggle(13); //LED
 		}
@@ -357,12 +343,16 @@ void beep_speaker_blocking(int duration_ms, int duty_haha_duty)
 	nrf_pwm_set_enabled(false);
 }
 
+////////////////////////////////////////
 // Button input
+////////////////////////////////////////
 #include "nrf_gpio.h"
 #define PIN_BUTTON 9
 #define isButtonPressed !nrf_gpio_pin_read(PIN_BUTTON)
 
+////////////////////////////////////////
 //LITTLEFS
+////////////////////////////////////////
 time_t lastTimeBoardMoved = 0;
 int log_file_stop();
 void log_file_start();
@@ -423,9 +413,9 @@ const struct lfs_config cfg = {
     .block_cycles = 500,
 };
 
-///////////////////
-
+////////////////////////////////////////
 // User configuration
+////////////////////////////////////////
 void user_cfg_set(void);
 void user_cfg_get(void);
 #include "user_cfg.h"
@@ -466,9 +456,9 @@ struct gotchi_configuration gotchi_cfg_user = {
 	.cfg_version = 0
 };
 
-//////////////////
-
+////////////////////////////////////////
 // Tracking free space
+////////////////////////////////////////
 static volatile int lfs_percent_free = 0;
 uint8_t lfs_free_space_check(void)
 {
@@ -494,7 +484,9 @@ uint8_t lfs_free_space_check(void)
 	return lfs_percent_free;
 }
 
-//////////////////
+////////////////////////////////////////////////////////////
+// Everything that once was but has been heavily modified
+////////////////////////////////////////////////////////////
 
 #ifndef MODULE_BUILTIN
 #define MODULE_BUILTIN					0
@@ -1693,9 +1685,9 @@ static ret_code_t twi_master_init(void)
 
 
 
-
-////////////////QSPI
-
+////////////////////////////////////////
+// QSPI
+////////////////////////////////////////
 #define QSPI_STD_CMD_WRSR   0x01
 #define QSPI_STD_CMD_RSTEN  0x66
 #define QSPI_STD_CMD_RST	0x99
@@ -1937,7 +1929,9 @@ void littlefs_init()
 #endif
 }
 
-/////////////////////
+/////////////////////////////////////////
+// User Configuration
+////////////////////////////////////////
 
 void user_cfg_set(void)
 {
@@ -1975,8 +1969,9 @@ void user_cfg_get(void)
 	}
 }
 
-////////////
-
+////////////////////////////////////////
+// Game that needs it's own source file
+////////////////////////////////////////
 
 #if HAS_DISPLAY
 // Dont ask
