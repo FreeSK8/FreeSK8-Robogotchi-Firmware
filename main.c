@@ -425,6 +425,7 @@ const struct gotchi_configuration gotchi_cfg_default = {
 	.log_auto_stop_low_voltage = 20.0,
 	.log_auto_start_duty_cycle = 0.01,
 	.log_interval_hz = 1,
+	.log_auto_erase_when_full = 0,
 
 	.multi_esc_mode = 0,
 	.multi_esc_ids = {0,0,0,0},
@@ -434,6 +435,7 @@ const struct gotchi_configuration gotchi_cfg_default = {
 	.alert_low_voltage = 0.0,
 	.alert_esc_temp = 0.0,
 	.alert_motor_temp = 0.0,
+	.alert_storage_at_capacity = 0,
 
 	.cfg_version = 2 // Expected configuration version, increment with changes to struct
 };
@@ -443,6 +445,7 @@ struct gotchi_configuration gotchi_cfg_user = {
 	.log_auto_stop_low_voltage = 20.0,
 	.log_auto_start_duty_cycle = 0.01,
 	.log_interval_hz = 1,
+	.log_auto_erase_when_full = 0,
 
 	.multi_esc_mode = 0,
 	.multi_esc_ids = {0,0,0,0},
@@ -452,6 +455,7 @@ struct gotchi_configuration gotchi_cfg_user = {
 	.alert_low_voltage = 0.0,
 	.alert_esc_temp = 0.0,
 	.alert_motor_temp = 0.0,
+	.alert_storage_at_capacity = 0,
 
 	.cfg_version = 0
 };
