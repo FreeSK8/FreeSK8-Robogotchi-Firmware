@@ -6,6 +6,7 @@ struct gotchi_configuration {
 	float log_auto_stop_low_voltage;
 	float log_auto_start_duty_cycle;
 	uint8_t log_interval_hz;
+	uint8_t log_auto_erase_when_full;
 	
 	uint8_t multi_esc_mode; //0,1 = Single ESC Mode
 							//2 = Dual ESC Mode
@@ -16,6 +17,7 @@ struct gotchi_configuration {
 	float alert_low_voltage;
 	float alert_esc_temp;
 	float alert_motor_temp;
+	uint8_t alert_storage_at_capacity;
 
 	uint32_t cfg_version;
 };

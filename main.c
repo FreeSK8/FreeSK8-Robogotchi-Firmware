@@ -423,26 +423,9 @@ const struct lfs_config cfg = {
     .block_cycles = 500,
 };
 
-// Tracking free space
-static volatile int lfs_percent_free = 0;
-uint8_t lfs_free_space_check(void)
-{
-	int lfs_blocks_allocated = lfs_fs_size(&lfs);
-	//NOTE: Max free space is going to report 99% to preserve OLED screen space
-	lfs_percent_free =  99 - (int)((double)lfs_blocks_allocated / (double)cfg.block_count * 99);
-	NRF_LOG_INFO("FS Blocks Allocated: %ld", lfs_blocks_allocated);
-	NRF_LOG_INFO("FS BlockCount: %d Percentage Free: %d", cfg.block_count, lfs_percent_free);
-	NRF_LOG_FLUSH();
-#if HAS_DISPLAY
-	Adafruit_GFX_setCursor(88,16);
-	sprintf(display_text_buffer,"%02d%%", lfs_percent_free);
-	Adafruit_GFX_print(display_text_buffer);
-	update_display = true;
-#endif
-	return lfs_percent_free;
-}
 ///////////////////
 
+// User configuration
 void user_cfg_set(void);
 void user_cfg_get(void);
 #include "user_cfg.h"
@@ -482,6 +465,34 @@ struct gotchi_configuration gotchi_cfg_user = {
 
 	.cfg_version = 0
 };
+
+//////////////////
+
+// Tracking free space
+static volatile int lfs_percent_free = 0;
+uint8_t lfs_free_space_check(void)
+{
+	int lfs_blocks_allocated = lfs_fs_size(&lfs);
+	//NOTE: Max free space is going to report 99% to preserve OLED screen space
+	lfs_percent_free =  99 - (int)((double)lfs_blocks_allocated / (double)cfg.block_count * 99);
+	NRF_LOG_INFO("FS Blocks Allocated: %ld", lfs_blocks_allocated);
+	NRF_LOG_INFO("FS BlockCount: %d Percentage Free: %d", cfg.block_count, lfs_percent_free);
+	NRF_LOG_FLUSH();
+
+#if HAS_DISPLAY
+	Adafruit_GFX_setCursor(88,16);
+	sprintf(display_text_buffer,"%02d%%", lfs_percent_free);
+	Adafruit_GFX_print(display_text_buffer);
+	update_display = true;
+#endif
+
+	if (gotchi_cfg_user.alert_storage_at_capacity != 0 && 99 - lfs_percent_free > gotchi_cfg_user.alert_storage_at_capacity)
+	{
+		melody_play(MELODY_LICK, false); // Play storage at capacity alert, do not interrupt
+	}
+
+	return lfs_percent_free;
+}
 
 //////////////////
 
@@ -1114,7 +1125,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
 
 	break;
 	default:
-		NRF_LOG_INFO("No handler for: p_ble_evt->header.evt_id %ld", p_ble_evt->header.evt_id);
+		NRF_LOG_INFO("No handler programmed for: p_ble_evt->header.evt_id 0x%02x", p_ble_evt->header.evt_id);
 		NRF_LOG_FLUSH();
 		// No implementation needed.
 		break;
@@ -1548,12 +1559,20 @@ static void logging_timer_handler(void *p_context) {
 	if (log_file_active && currentTime % 60 == 0)
 	{
 		lfs_file_sync(&lfs, &file);
-		//TODO: check for free space
+
+		// Check for free space after committing data to storage
 		if (lfs_free_space_check() < 10) //TODO: define percentage free limit
 		{
-			//TODO: alert user
-			// Stop logging to prevent corruption
-			log_file_stop();
+			// Check if user wants to erase old files automatically
+			if (gotchi_cfg_user.log_auto_erase_when_full == 1)
+			{
+				//TODO: call method to erase oldest file until free space is happy
+			}
+			else
+			{
+				// Stop logging to prevent corruption
+				log_file_stop();
+			}
 		}
 	}
 }
@@ -1781,9 +1800,16 @@ void log_file_start()
 	//TODO: check for free space
 	if (lfs_free_space_check() < 10) //TODO: define percentage free limit
 	{
-		//TODO: alert user
-		// Do not log
-		return;
+		// Check if user wants to erase old files automatically
+		if (gotchi_cfg_user.log_auto_erase_when_full == 1)
+		{
+			//TODO: call method to erase oldest file until free space is happy
+		}
+		else
+		{
+			// Do not log, do not pass go, do not collect $200
+			return;
+		}
 	}
 
 	// Create the new file
