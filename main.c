@@ -1563,6 +1563,7 @@ static void logging_timer_handler(void *p_context) {
 			if (gotchi_cfg_user.log_auto_erase_when_full == 1)
 			{
 				//TODO: call method to erase oldest file until free space is happy
+				log_file_stop();
 			}
 			else
 			{
@@ -1800,6 +1801,7 @@ void log_file_start()
 		if (gotchi_cfg_user.log_auto_erase_when_full == 1)
 		{
 			//TODO: call method to erase oldest file until free space is happy
+			return;
 		}
 		else
 		{
