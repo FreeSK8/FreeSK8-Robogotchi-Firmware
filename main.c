@@ -134,7 +134,7 @@ static uint8_t recent_fault_index = 0;
 ////////////////////////////////////////
 #include "buzzer/nrf_pwm.h"
 #include "buzzer/melody_notes.h"
-#define PIN_PIEZO 10
+#define PIN_PIEZO 8
 
 static int melody_notes=0;
 static int melody_wholenote = 0;
@@ -347,8 +347,10 @@ void beep_speaker_blocking(int duration_ms, int duty_haha_duty)
 // Button input
 ////////////////////////////////////////
 #include "nrf_gpio.h"
-#define PIN_BUTTON 9
+#define PIN_BUTTON 10
+#define PIN_BUTTON2 9
 #define isButtonPressed !nrf_gpio_pin_read(PIN_BUTTON)
+#define isButton2Pressed !nrf_gpio_pin_read(PIN_BUTTON2)
 
 ////////////////////////////////////////
 //LITTLEFS
@@ -538,8 +540,8 @@ uint8_t lfs_free_space_check(void)
 #define DEAD_BEEF					   0xDEADBEEF								  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
 #ifdef NRF52840_XXAA
-#define UART_TX_BUF_SIZE				16384
-#define UART_RX_BUF_SIZE				16384
+#define UART_TX_BUF_SIZE				4096
+#define UART_RX_BUF_SIZE				4096
 #else
 #define UART_TX_BUF_SIZE				2048
 #define UART_RX_BUF_SIZE				8192
@@ -552,33 +554,16 @@ uint8_t lfs_free_space_check(void)
 #if MODULE_BUILTIN
 #define UART_RX							26
 #define UART_TX							25
-#define UART_TX_DISABLED				28
 #define LED_PIN							27
 #elif defined(MODULE_FREESK8)
-#define UART_RX							36
-#define UART_TX							35
-#define UART_TX_DISABLED				19
-#define LED_PIN							13
-#else
-#define UART_RX							11
-#define UART_TX							8
-#define UART_TX_DISABLED				25
-#define LED_PIN							7
-#endif
-#else
-#if MODULE_BUILTIN
 #define UART_RX							6
 #define UART_TX							7
-#define UART_TX_DISABLED				25
-#define EN_DEFAULT						1
-#define LED_PIN							8
+#define LED_PIN							5
 #else
-#define UART_RX							7
-#define UART_TX							6
-#define UART_TX_DISABLED				25
-#define EN_DEFAULT						1
-#define LED_PIN							8
+#error Define MODULE_FREESK8 or MODULE_BUILTIN
 #endif
+#else
+#error Firmware is deisnged for 52840_XXAA
 #endif
 
 
@@ -618,8 +603,8 @@ app_uart_comm_params_t m_uart_comm_params =
 };
 gps_uart_comm_params_t m_gpsuart_comm_params =
 {
-		.rx_pin_no	= 3,
-		.tx_pin_no	= 2,
+		.rx_pin_no	= 2,
+		.tx_pin_no	= 3,
 		.rts_pin_no   = 0,
 		.cts_pin_no   = 0,
 		.flow_control = GPS_UART_FLOW_CONTROL_DISABLED,
