@@ -30,6 +30,8 @@ static int command_input_index = 0;
 static char command_input_buffer[ 128 ] = { 0 };
 static unsigned char command_response_buffer[512];
 
+extern bool sync_in_progress;
+
 void command_interface_init(void (*ble_send_logbuffer)(unsigned char *, unsigned int), lfs_t *lfs)
 {
     ASSERT(lfs != NULL);
@@ -155,6 +157,7 @@ void command_interface_process_byte(char incoming)
                 sprintf((char *)command_response_buffer, "cat,%s", filename);
                 m_ble_tx_logbuffer(command_response_buffer, (size_t)strlen((const char *)command_response_buffer));
                 bytes_sent = 0;
+                sync_in_progress = true;
             }
         }
         else if(strncmp(command_input_buffer, "rm ", 3) == 0 && strlen(command_input_buffer) > 3)
@@ -202,7 +205,7 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.3.0,alpha");
+            sprintf((char *)command_response_buffer, "version,0.3.1,alpha");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
@@ -371,6 +374,8 @@ void command_interface_continue_transfer(char* command)
 
             NRF_LOG_INFO("cat close result: %d", close_result);
             NRF_LOG_FLUSH();
+
+            sync_in_progress = false;
         }
         else if(bytes_sent < file.ctz.size)
         {

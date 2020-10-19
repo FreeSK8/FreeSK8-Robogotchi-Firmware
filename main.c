@@ -355,6 +355,7 @@ void beep_speaker_blocking(int duration_ms, int duty_haha_duty)
 ////////////////////////////////////////
 //LITTLEFS
 ////////////////////////////////////////
+bool sync_in_progress = false;
 time_t lastTimeBoardMoved = 0;
 int log_file_stop();
 void log_file_start();
@@ -425,7 +426,7 @@ static int multiESCIndex = 0;
 const struct gotchi_configuration gotchi_cfg_default = {
 	.log_auto_stop_idle_time = 300,
 	.log_auto_stop_low_voltage = 20.0,
-	.log_auto_start_duty_cycle = 0.01,
+	.log_auto_start_duty_cycle = 0.1,
 	.log_interval_hz = 1,
 	.log_auto_erase_when_full = 0,
 
@@ -445,7 +446,7 @@ const struct gotchi_configuration gotchi_cfg_default = {
 struct gotchi_configuration gotchi_cfg_user = {
 	.log_auto_stop_idle_time = 300,
 	.log_auto_stop_low_voltage = 20.0,
-	.log_auto_start_duty_cycle = 0.01,
+	.log_auto_start_duty_cycle = 0.1,
 	.log_interval_hz = 1,
 	.log_auto_erase_when_full = 0,
 
@@ -1770,6 +1771,13 @@ int log_file_stop()
 
 void log_file_start()
 {
+	if (sync_in_progress)
+	{
+		NRF_LOG_INFO("log_file_start() aborting due to sync_in_progress");
+		NRF_LOG_FLUSH();
+		return;
+	}
+
 	// Flag the board as in motion to begin the countdown to idle
 	lastTimeBoardMoved = currentTime;
 
