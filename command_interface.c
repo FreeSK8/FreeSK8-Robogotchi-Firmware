@@ -205,15 +205,15 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.3.1,alpha");
+            sprintf((char *)command_response_buffer, "version,0.3.2,alpha");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
         {
-            sprintf((char *)command_response_buffer, "getcfg,%d,%0.2f,%0.2f,%d,%d,%d,%d,%d,%d,%d,%ld,%0.1f,%0.1f,%0.1f,%d,%ld",
+            sprintf((char *)command_response_buffer, "getcfg,%d,%0.2f,%d,%d,%d,%d,%d,%d,%d,%d,%ld,%0.1f,%0.1f,%0.1f,%d,%ld",
                 gotchi_cfg_user.log_auto_stop_idle_time,
                 gotchi_cfg_user.log_auto_stop_low_voltage,
-                gotchi_cfg_user.log_auto_start_duty_cycle,
+                gotchi_cfg_user.log_auto_start_erpm,
                 gotchi_cfg_user.log_interval_hz,
                 gotchi_cfg_user.log_auto_erase_when_full,
                 gotchi_cfg_user.multi_esc_mode,
@@ -235,7 +235,7 @@ void command_interface_process_byte(char incoming)
             struct gotchi_configuration gotchi_cfg;
             gotchi_cfg.log_auto_stop_idle_time = 0;
             gotchi_cfg.log_auto_stop_low_voltage = 0;
-            gotchi_cfg.log_auto_start_duty_cycle = 0;
+            gotchi_cfg.log_auto_start_erpm = 0;
             gotchi_cfg.log_interval_hz = 0;
             gotchi_cfg.log_auto_erase_when_full = 0;
             gotchi_cfg.multi_esc_mode = 0;
@@ -258,7 +258,7 @@ void command_interface_process_byte(char incoming)
             field = strtok(NULL, ",");
             gotchi_cfg.log_auto_stop_low_voltage = atof(field);
             field = strtok(NULL, ",");
-            gotchi_cfg.log_auto_start_duty_cycle = atof(field);
+            gotchi_cfg.log_auto_start_erpm = atoi(field);
             field = strtok(NULL, ",");
             gotchi_cfg.log_interval_hz = atoi(field);
             field = strtok(NULL, ",");
