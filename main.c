@@ -227,6 +227,21 @@ void melody_play(int index, bool interrupt_melody)
 			melody_notes=sizeof(melody_lionsleeps)/sizeof(melody_lionsleeps[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_lionsleeps;
 		break;
+		case MELODY_ASC:
+			melody = (int*)&melody_ascending;
+			melody_notes=sizeof(melody_ascending)/sizeof(melody_ascending[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_ascending;
+		break;
+		case MELODY_DESC:
+			melody = (int*)&melody_descending;
+			melody_notes=sizeof(melody_descending)/sizeof(melody_descending[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_descending;
+		break;
+		case MELODY_MARIO:
+			melody = (int*)&melody_mario;
+			melody_notes=sizeof(melody_mario)/sizeof(melody_mario[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_mario;
+		break;
 		default:
 		//TODO: add default melody
 		break;
@@ -426,7 +441,7 @@ static int multiESCIndex = 0;
 const struct gotchi_configuration gotchi_cfg_default = {
 	.log_auto_stop_idle_time = 300,
 	.log_auto_stop_low_voltage = 20.0,
-	.log_auto_start_duty_cycle = 0.1,
+	.log_auto_start_erpm = 2000,
 	.log_interval_hz = 1,
 	.log_auto_erase_when_full = 0,
 
@@ -440,13 +455,13 @@ const struct gotchi_configuration gotchi_cfg_default = {
 	.alert_motor_temp = 0.0,
 	.alert_storage_at_capacity = 0,
 
-	.cfg_version = 2 // Expected configuration version, increment with changes to struct
+	.cfg_version = 3 // Expected configuration version, increment with changes to struct
 };
 
 struct gotchi_configuration gotchi_cfg_user = {
 	.log_auto_stop_idle_time = 300,
 	.log_auto_stop_low_voltage = 20.0,
-	.log_auto_start_duty_cycle = 0.1,
+	.log_auto_start_erpm = 2000,
 	.log_interval_hz = 1,
 	.log_auto_erase_when_full = 0,
 
@@ -470,20 +485,19 @@ static volatile int lfs_percent_free = 0;
 uint8_t lfs_free_space_check(void)
 {
 	int lfs_blocks_allocated = lfs_fs_size(&lfs);
-	//NOTE: Max free space is going to report 99% to preserve OLED screen space
-	lfs_percent_free =  99 - (int)((double)lfs_blocks_allocated / (double)cfg.block_count * 99);
+	lfs_percent_free =  100 - (int)((double)lfs_blocks_allocated / (double)cfg.block_count * 100);
 	NRF_LOG_INFO("FS Blocks Allocated: %ld", lfs_blocks_allocated);
 	NRF_LOG_INFO("FS BlockCount: %d Percentage Free: %d", cfg.block_count, lfs_percent_free);
 	NRF_LOG_FLUSH();
 
 #if HAS_DISPLAY
 	Adafruit_GFX_setCursor(88,16);
-	sprintf(display_text_buffer,"%02d%%", lfs_percent_free);
+	snprintf(display_text_buffer,4,"%02d%%", lfs_percent_free);
 	Adafruit_GFX_print(display_text_buffer);
 	update_display = true;
 #endif
 
-	if (gotchi_cfg_user.alert_storage_at_capacity != 0 && 99 - lfs_percent_free >= gotchi_cfg_user.alert_storage_at_capacity)
+	if (gotchi_cfg_user.alert_storage_at_capacity != 0 && 100 - lfs_percent_free >= gotchi_cfg_user.alert_storage_at_capacity)
 	{
 		melody_play(MELODY_LICK, false); // Play storage at capacity alert, do not interrupt
 	}
@@ -1411,7 +1425,6 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	if (log_file_active) {
 		if(esc_telemetry.v_in < gotchi_cfg_user.log_auto_stop_low_voltage) {
 			log_file_stop();
-			beep_speaker_blocking(50,50);
 			NRF_LOG_INFO("Logging stopped due to power drop");
 			NRF_LOG_FLUSH();
 			send_status_packet();
@@ -1419,15 +1432,14 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			log_file_stop();
 			NRF_LOG_INFO("Logging stopped due to inactivity");
 			NRF_LOG_FLUSH();
-			beep_speaker_blocking(50,50);
 			send_status_packet();
-		} else if (fabs(esc_telemetry.duty_now) > gotchi_cfg_user.log_auto_start_duty_cycle) {
+		} else if ((int)fabs(esc_telemetry.rpm) > gotchi_cfg_user.log_auto_start_erpm) {
 			// We are moving while logging. Keep it up!
 			lastTimeBoardMoved = currentTime;
 		}
 	}
 	// We are not logging, see if we should start
-	else if (fabs(esc_telemetry.duty_now) > gotchi_cfg_user.log_auto_start_duty_cycle) {
+	else if ((int)fabs(esc_telemetry.rpm) > gotchi_cfg_user.log_auto_start_erpm) {
 		log_file_start();
 		NRF_LOG_INFO("Logging started automatically");
 		NRF_LOG_FLUSH();
@@ -1764,7 +1776,11 @@ int log_file_stop()
 		Adafruit_GFX_print(display_text_buffer);
 		update_display = true;
 #endif
-		return lfs_file_close(&lfs, &file);
+		int lfs_close_result = lfs_file_close(&lfs, &file);
+		NRF_LOG_INFO("log_file_stop::lfs_file_close() result: %d", lfs_close_result);
+		NRF_LOG_FLUSH();
+		melody_play(MELODY_DESC, false); // Play log stop melody, do not interrupt
+		return lfs_close_result;
 	}
 	return -1;
 }
@@ -1825,6 +1841,7 @@ void log_file_start()
 		Adafruit_GFX_print(display_text_buffer);
 		update_display = true;
 #endif
+		melody_play(MELODY_ASC, false); // Play log started melody, do not interrupt
 	} else {
 		NRF_LOG_ERROR("log_file_start::lfs_file_open: Failed with result: %d", file_open_result);
 		NRF_LOG_FLUSH();
@@ -2414,7 +2431,7 @@ int main(void) {
 
 	advertising_start(false);
 
-	melody_play(MELODY_NOKIA, true); // Play a startup sound
+	melody_play(MELODY_MARIO, true); // Play a startup sound
 
 	for (;;) {
 #ifdef NRF52840_XXAA
