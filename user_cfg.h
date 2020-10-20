@@ -4,7 +4,7 @@
 struct gotchi_configuration {
 	uint16_t log_auto_stop_idle_time;
 	float log_auto_stop_low_voltage;
-	float log_auto_start_duty_cycle;
+	uint16_t log_auto_start_erpm;
 	uint8_t log_interval_hz;
 	uint8_t log_auto_erase_when_full;
 	
