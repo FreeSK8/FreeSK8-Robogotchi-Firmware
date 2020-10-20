@@ -102,7 +102,9 @@ enum {
     MELODY_VAMPIRE,
     MELODY_BACH,
     MELODY_LIONSLEEPS,
-
+    MELODY_ASC,
+    MELODY_DESC,
+    MELODY_MARIO,
 };
 
 const int melody_takeonme[] = {
@@ -299,5 +301,24 @@ const int melody_lionsleeps[] = {
     NOTE_D4, 1,
 };
 const int tempo_lionsleeps = 122;
+
+const int melody_ascending[] = {
+    // The Lick
+    NOTE_D4,8, NOTE_E4,8, NOTE_F4,8, NOTE_G4,8,
+};
+const int tempo_ascending = 242;
+
+const int melody_descending[] = {
+    // The Lick
+    NOTE_G4,8, NOTE_F4,8, NOTE_E4,8, NOTE_D4,8,
+};
+const int tempo_descending = 242;
+
+const int melody_mario[] = {
+    // Super!! Mario!!
+    NOTE_E5,8, NOTE_E5,8, REST,8, NOTE_E5,8, REST,8, NOTE_C5,8, NOTE_E5,8, //1
+    NOTE_G5,4, REST,4, NOTE_G4,8, REST,4,
+};
+const int tempo_mario = 200;
 
 #endif
