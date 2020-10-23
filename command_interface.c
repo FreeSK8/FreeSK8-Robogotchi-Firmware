@@ -303,6 +303,7 @@ void command_interface_process_byte(char incoming)
 #endif
             if(gotchi_cfg.cfg_version == gotchi_cfg_user.cfg_version)
             {
+                log_file_stop(); // Stop logging before changing settings
                 gotchi_cfg_user = gotchi_cfg;
                 user_cfg_set();
                 sprintf((char *)command_response_buffer, "setcfg,OK");
