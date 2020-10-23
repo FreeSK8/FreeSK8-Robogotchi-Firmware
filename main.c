@@ -1850,8 +1850,8 @@ void log_file_start()
 
 void update_status_packet(char * buffer)
 {
-	//TODO: Possible status variables: isLogging, bytesSaved, fileStartTime, fileCount
-	sprintf(buffer, "status,OK,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free);
+	// Update the buffer with the a status response packet
+	sprintf(buffer, "status,OK,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free, lfs_file_count);
 }
 
 
