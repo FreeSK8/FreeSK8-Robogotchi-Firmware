@@ -120,6 +120,7 @@ time_t currentTime;
 static volatile char datetimestring[ 64 ] = { 0 };
 static volatile bool log_file_active = false;
 static volatile bool write_logdata_now = false;
+static volatile bool gps_signal_locked = false;
 
 ////////////////////////////////////////
 // Fault tracking
@@ -241,6 +242,16 @@ void melody_play(int index, bool interrupt_melody)
 			melody = (int*)&melody_mario;
 			melody_notes=sizeof(melody_mario)/sizeof(melody_mario[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_mario;
+		break;
+		case MELODY_GPS_LOCK:
+			melody = (int*)&melody_gps_locked;
+			melody_notes=sizeof(melody_gps_locked)/sizeof(melody_gps_locked[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_gps_locked;
+		break;
+		case MELODY_GPS_LOST:
+			melody = (int*)&melody_gps_lost;
+			melody_notes=sizeof(melody_gps_lost)/sizeof(melody_gps_lost[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_gps_lost;
 		break;
 		default:
 		//TODO: add default melody
@@ -1547,6 +1558,18 @@ static void logging_timer_handler(void *p_context) {
 			NRF_LOG_INFO("GPS Bytes Written: %ld", gps_write_result);
 			NRF_LOG_FLUSH();
 		}
+	}
+
+	// Track GPS signal acquisition and loss
+	if (gps_signal_locked && (!hgps.is_valid || hgps.fix < 1))
+	{
+		gps_signal_locked = false;
+		melody_play(MELODY_GPS_LOST, true); // Play GPS lost melody, interrupt
+	}
+	else if (!gps_signal_locked && hgps.is_valid && hgps.fix > 0)
+	{
+		gps_signal_locked = true;
+		melody_play(MELODY_GPS_LOCK, false); // Play GPS locked melody, do not interrupt
 	}
 
 	// Sync filesystem contents every 60 seconds

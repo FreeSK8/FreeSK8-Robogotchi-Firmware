@@ -11,6 +11,7 @@
 
 extern uint16_t lfs_file_count;
 extern void display_file_count(void);
+extern uint8_t lfs_free_space_check(void);
 extern int log_file_stop();
 extern void log_file_start();
 extern void update_status_packet(char * buffer);
@@ -376,6 +377,8 @@ void command_interface_continue_transfer(char* command)
             NRF_LOG_FLUSH();
 
             sync_in_progress = false;
+
+            lfs_free_space_check();
         }
         else if(bytes_sent < file.ctz.size)
         {

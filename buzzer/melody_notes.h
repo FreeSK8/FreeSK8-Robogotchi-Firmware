@@ -105,6 +105,8 @@ enum {
     MELODY_ASC,
     MELODY_DESC,
     MELODY_MARIO,
+    MELODY_GPS_LOCK,
+    MELODY_GPS_LOST,
 };
 
 const int melody_takeonme[] = {
@@ -303,13 +305,13 @@ const int melody_lionsleeps[] = {
 const int tempo_lionsleeps = 122;
 
 const int melody_ascending[] = {
-    // The Lick
+    // Ascending
     NOTE_D4,8, NOTE_E4,8, NOTE_F4,8, NOTE_G4,8,
 };
 const int tempo_ascending = 242;
 
 const int melody_descending[] = {
-    // The Lick
+    // Descending
     NOTE_G4,8, NOTE_F4,8, NOTE_E4,8, NOTE_D4,8,
 };
 const int tempo_descending = 242;
@@ -320,5 +322,17 @@ const int melody_mario[] = {
     NOTE_G5,4, REST,4, NOTE_G4,8, REST,4,
 };
 const int tempo_mario = 200;
+
+const int melody_gps_locked[] = {
+    // GPS Signal Acquisition
+    NOTE_D4,8, NOTE_E4,8, NOTE_D4,8, NOTE_E4,8, NOTE_D4,8, NOTE_E4,8,
+};
+const int tempo_gps_locked = 420;
+
+const int melody_gps_lost[] = {
+    // GPS Signal Lost
+    NOTE_G4,8, NOTE_F4,8, NOTE_G4,8, NOTE_F4,8, NOTE_G4,8, NOTE_F4,8,
+};
+const int tempo_gps_lost = 420;
 
 #endif
