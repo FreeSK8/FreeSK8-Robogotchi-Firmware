@@ -136,6 +136,7 @@ void command_interface_process_byte(char incoming)
                     file_bytes_total += entryinfo.size;
                 }
             }
+            lfs_dir_close(m_lfs, &directory);
 
             NRF_LOG_INFO("File Count: %d, Total Size: %d bytes", file_count, file_bytes_total);
             NRF_LOG_FLUSH();
@@ -172,9 +173,6 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_INFO("filepath %s", filepath);
             NRF_LOG_FLUSH();
 
-            lfs_unmount(m_lfs);
-            lfs_mount(m_lfs, &cfg);
-
             int remove_response = lfs_remove(m_lfs,filepath);
             NRF_LOG_INFO("lfs_remove():remove_response: %d", remove_response);
             NRF_LOG_FLUSH();
@@ -205,7 +203,7 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.3.3,alpha");
+            sprintf((char *)command_response_buffer, "version,0.3.4,alpha");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
@@ -355,6 +353,7 @@ void command_interface_continue_transfer(char* command)
         }
         else
         {
+            lfs_dir_close(m_lfs, &directory);
             sprintf((char *)command_response_buffer, "ls,complete");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
