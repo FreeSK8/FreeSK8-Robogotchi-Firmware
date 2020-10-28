@@ -315,6 +315,16 @@ void command_interface_process_byte(char incoming)
 
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
+        else if(strncmp(command_input_buffer, "syncstop", 8) == 0)
+        {
+            // Sync process was aborted by the user
+            NRF_LOG_INFO("cancel cat");
+            NRF_LOG_FLUSH();
+            int close_result = lfs_file_close(m_lfs, &file);
+            NRF_LOG_INFO("cat close result: %d", close_result);
+            NRF_LOG_FLUSH();
+            sync_in_progress = false;
+        }
 
         memset(command_input_buffer, 0, sizeof(command_input_buffer));
         command_input_index = 0;
