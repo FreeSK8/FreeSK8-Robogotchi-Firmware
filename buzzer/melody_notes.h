@@ -325,13 +325,13 @@ const int tempo_mario = 200;
 
 const int melody_gps_locked[] = {
     // GPS Signal Acquisition
-    NOTE_D4,8, NOTE_E4,8, NOTE_D4,8, NOTE_E4,8, NOTE_D4,8, NOTE_E4,8,
+    NOTE_G4,8, NOTE_G5,8, NOTE_G4,8, NOTE_G5,8, NOTE_G4,8, NOTE_G5,8,
 };
 const int tempo_gps_locked = 420;
 
 const int melody_gps_lost[] = {
     // GPS Signal Lost
-    NOTE_G4,8, NOTE_F4,8, NOTE_G4,8, NOTE_F4,8, NOTE_G4,8, NOTE_F4,8,
+    NOTE_D4,8, NOTE_E4,8, NOTE_D4,8, NOTE_E4,8, NOTE_D4,8, NOTE_E4,8,
 };
 const int tempo_gps_lost = 420;
 
