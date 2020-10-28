@@ -181,6 +181,7 @@ void command_interface_process_byte(char incoming)
             {
                 if (lfs_file_count > 0) --lfs_file_count; //TODO: BUG: Sync with Erase in Mobile app will not actually erase but counter decrements. This makes file_count inaccurate desipte checking response from lfs_remove
                 display_file_count();
+                lfs_free_space_check();
                 sprintf((char *)command_response_buffer, "rm,OK,%s", filename);
             } 
             else 
@@ -377,8 +378,6 @@ void command_interface_continue_transfer(char* command)
             NRF_LOG_FLUSH();
 
             sync_in_progress = false;
-
-            lfs_free_space_check();
         }
         else if(bytes_sent < file.ctz.size)
         {
