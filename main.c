@@ -759,7 +759,6 @@ static void passkey_init(uint32_t ble_pin)
 	ble_opt_t ble_opt;
 	ble_opt.gap_opt.passkey.p_passkey = (uint8_t*)&passkey[0];
 	(void)sd_ble_opt_set(BLE_GAP_OPT_PASSKEY, &ble_opt);
-	NRF_LOG_INFO("BLE GAP PASSKEY: %s", passkey);
 }
 
 /**@brief Clear bond information from persistent storage.
@@ -1746,6 +1745,8 @@ static void configure_memory()
 	err_code = nrf_drv_qspi_cinstr_xfer(&cinstr_cfg, &temporary, NULL);
 	APP_ERROR_CHECK(err_code);
 
+	NRF_LOG_INFO("QSPI Memory Configured");
+	NRF_LOG_FLUSH();
 }
 
 /**@brief Function for initializing the nrf log module.
@@ -1768,12 +1769,13 @@ void qspi_init()
 	nrf_drv_qspi_config_t config = NRF_DRV_QSPI_DEFAULT_CONFIG;
 
 	err_code = nrf_drv_qspi_init(&config, NULL, NULL);
-	NRF_LOG_INFO("QSPI driver init response %d", err_code);
-	NRF_LOG_FLUSH();
-	if(err_code < 0)
+
+	if(err_code == 0)
 	{
+		NRF_LOG_INFO("nrf_drv_qspi_init response %d", err_code);
+		NRF_LOG_FLUSH();
 #if HAS_DISPLAY
-		Adafruit_GFX_setCursor(0,8);
+		Adafruit_GFX_setCursor(0,16);
 		sprintf(display_text_buffer,"QSPI Init Failed");
 		Adafruit_GFX_print(display_text_buffer);
 		SSD1306_display();
@@ -1895,6 +1897,11 @@ void littlefs_init()
         int lfs_mount_response = lfs_mount(&lfs, &cfg);
 		NRF_LOG_WARNING("LittleFS format (%d) and mount (%d) completed", lfs_format_response, lfs_mount_response);
 		user_cfg_set();
+#if HAS_DISPLAY
+		Adafruit_GFX_setCursor(45,0);
+		Adafruit_GFX_print("*F");
+		SSD1306_display();
+#endif
     }
     NRF_LOG_INFO("LittleFS initialized");
     NRF_LOG_FLUSH();
@@ -2354,6 +2361,10 @@ int main(void) {
 	app_usbd_class_inst_t const * class_cdc_acm = app_usbd_cdc_acm_class_inst_get(&m_app_cdc_acm);
 	app_usbd_class_append(class_cdc_acm);
 #endif
+	// NRF LOG Init
+	log_init();
+	NRF_LOG_INFO("Robogotchi Starting");
+	NRF_LOG_FLUSH();
 
 	// Initialize PWM for piezo output
 	buzzer_init();
@@ -2363,8 +2374,10 @@ int main(void) {
 	ret_code_t err_code = twi_master_init();
 	APP_ERROR_CHECK(err_code);
 
-#if HAS_DISPLAY
+	NRF_LOG_INFO("I2C Initialized");
+	NRF_LOG_FLUSH();
 
+#if HAS_DISPLAY
 	//NOTE: display needs few ms before it will respond from cold boot
 	SSD1306_begin(SSD1306_SWITCHCAPVCC, 0x3C, false);
 	Adafruit_GFX_init(SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT, SSD1306_drawPixel);
@@ -2378,6 +2391,8 @@ int main(void) {
 	Adafruit_GFX_print(freetitle);
 	SSD1306_display();
 
+	NRF_LOG_INFO("OLED Initialized");
+	NRF_LOG_FLUSH();
 #endif
 
 	// Allocate tmTime in memory
@@ -2388,15 +2403,19 @@ int main(void) {
 	// Get the current time from the RTC
 	rtc_get_time();
 
+	NRF_LOG_INFO("RTC Initialized");
+	NRF_LOG_FLUSH();
+
 #if HAS_DISPLAY
+	Adafruit_GFX_setCursor(0,8);
+	Adafruit_GFX_print("RTC OK");
+	SSD1306_display();
+
 	if(isButtonPressed)
 	{
 		play_game();
 	}
 #endif
-
-	// NRF LOG Init
-	log_init();
 
 	// BLE PIN CODE
 	uint32_t ble_bondage_safe_word = (NRF_FICR->DEVICEID[0] +  NRF_FICR->DEVICEID[1]) % 999999;
@@ -2406,6 +2425,7 @@ int main(void) {
 		ble_bondage_safe_word += 100000;
 	}
 	NRF_LOG_INFO("PIN CODE %d", ble_bondage_safe_word);
+	NRF_LOG_FLUSH();
 	// Store PIN for Display
 	itoa(ble_bondage_safe_word, ble_pin, 10);
 
@@ -2455,6 +2475,9 @@ int main(void) {
 	advertising_start(false);
 
 	melody_play(MELODY_MARIO, true); // Play a startup sound
+
+	NRF_LOG_INFO("Robogotchi Ready!");
+	NRF_LOG_FLUSH();
 
 	for (;;) {
 #ifdef NRF52840_XXAA

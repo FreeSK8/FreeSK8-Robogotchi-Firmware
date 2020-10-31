@@ -84,8 +84,9 @@ static inline uint8_t bcd_decimal(uint8_t hex)
 
 void rtc_get_time()
 {
-	//NRF_LOG_INFO("getting time");
-	//NRF_LOG_FLUSH();
+	NRF_LOG_INFO("Requesting time from RTC");
+	NRF_LOG_FLUSH();
+
 	ret_code_t ret;
 	uint8_t data[] = { 0x08 };
 	ret = nrf_drv_twi_tx( &m_twi_master, RTC_ADDRESS, data, 1, true );
@@ -105,14 +106,19 @@ void rtc_get_time()
 	NRF_LOG_FLUSH();
 */
 
-	tmTime->tm_sec = 	bcd_decimal( pdata[ 0 ] );
-	tmTime->tm_min = 	bcd_decimal( pdata[ 1 ] );
+	tmTime->tm_sec  = bcd_decimal( pdata[ 0 ] );
+	tmTime->tm_min  = bcd_decimal( pdata[ 1 ] );
 	tmTime->tm_hour = bcd_decimal( pdata[ 2 ] );
 	tmTime->tm_mday = bcd_decimal( pdata[ 3 ] );
 	tmTime->tm_wday = bcd_decimal( pdata[ 4 ] ) - 1;
-	tmTime->tm_mon = 	bcd_decimal( pdata[ 5 ] ) - 1;
+	tmTime->tm_mon  = bcd_decimal( pdata[ 5 ] ) - 1;
 	tmTime->tm_year = bcd_decimal( pdata[ 6 ] ) + 100; //tm_year starts at 1900, rtc starts at 2000
 	currentTime = mktime( tmTime );
+
+	char dt_string[64] = {0};
+	strftime(dt_string, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
+	NRF_LOG_INFO("%s", dt_string);
+	NRF_LOG_FLUSH();
 }
 
 void ConvertToBinary( uint8_t n, char* output )
