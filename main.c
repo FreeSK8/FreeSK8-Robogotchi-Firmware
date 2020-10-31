@@ -2345,7 +2345,9 @@ void process_user_input()
 int main(void) {
 
 	nrf_gpio_cfg_input(PIN_BUTTON,NRF_GPIO_PIN_PULLUP);
+	nrf_gpio_cfg_input(PIN_BUTTON2,NRF_GPIO_PIN_PULLUP);
 	nrf_gpio_cfg_output(LED_PIN);
+
 	// Turn on LED during boot
 	nrf_gpio_pin_set(LED_PIN);
 
@@ -2361,6 +2363,7 @@ int main(void) {
 	app_usbd_class_inst_t const * class_cdc_acm = app_usbd_cdc_acm_class_inst_get(&m_app_cdc_acm);
 	app_usbd_class_append(class_cdc_acm);
 #endif
+
 	// NRF LOG Init
 	log_init();
 	NRF_LOG_INFO("Robogotchi Starting");
