@@ -1770,7 +1770,7 @@ void qspi_init()
 
 	err_code = nrf_drv_qspi_init(&config, NULL, NULL);
 
-	if(err_code == 0)
+	if(err_code != NRF_SUCCESS)
 	{
 		NRF_LOG_INFO("nrf_drv_qspi_init response %d", err_code);
 		NRF_LOG_FLUSH();
