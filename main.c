@@ -121,6 +121,7 @@ static volatile char datetimestring[ 64 ] = { 0 };
 static volatile bool log_file_active = false;
 static volatile bool write_logdata_now = false;
 static volatile bool gps_signal_locked = false;
+static time_t time_esc_last_responded; // For triggering TX and RX pin swapping
 
 ////////////////////////////////////////
 // Fault tracking
@@ -1221,6 +1222,19 @@ static void uart_init(void) {
 			err_code);
 	APP_ERROR_CHECK(err_code);
 }
+
+static void uart_swap_pins(void) {
+
+	app_uart_close();
+
+	uint32_t old_rx_pin = m_uart_comm_params.rx_pin_no;
+	m_uart_comm_params.rx_pin_no = m_uart_comm_params.tx_pin_no;
+	m_uart_comm_params.tx_pin_no = old_rx_pin;
+
+	packet_reset(PACKET_VESC);
+	uart_init();
+}
+
 static void gps_init(void) {
 	uint32_t err_code;
 	m_gpsuart_comm_params.baud_rate = gotchi_cfg_user.gps_baud_rate;
@@ -1591,6 +1605,16 @@ static void logging_timer_handler(void *p_context) {
 				log_file_stop();
 			}
 		}
+	}
+
+	// Check if the ESC has not responded in 3 seconds and try swapping the TX and RX pins
+	if (currentTime - time_esc_last_responded > 3)
+	{
+		NRF_LOG_INFO("ESC has not responded in 3 seconds. Swapping UART TX and RX pins");
+		NRF_LOG_FLUSH();
+		uart_swap_pins();
+		// Reset the countdown
+		time_esc_last_responded = currentTime;
 	}
 }
 
@@ -2405,6 +2429,8 @@ int main(void) {
 	rtc_battery_charge();
 	// Get the current time from the RTC
 	rtc_get_time();
+	// Set the last ESC response time to now
+	time_esc_last_responded = currentTime;
 
 	NRF_LOG_INFO("RTC Initialized");
 	NRF_LOG_FLUSH();
@@ -2499,6 +2525,7 @@ int main(void) {
 
 		uint8_t byte;
 		while (app_uart_get(&byte) == NRF_SUCCESS) {
+			time_esc_last_responded = currentTime;
 			packet_process_byte(byte, PACKET_VESC);
 		}
 
