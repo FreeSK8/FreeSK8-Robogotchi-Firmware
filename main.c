@@ -1463,10 +1463,11 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 		}
 	}
 	// We are not logging, see if we should start
-	else if ((int)fabs(esc_telemetry.rpm) > gotchi_cfg_user.log_auto_start_erpm) {
+	else if ((int)fabs(esc_telemetry.rpm) > gotchi_cfg_user.log_auto_start_erpm && !sync_in_progress) {
 		log_file_start();
 		NRF_LOG_INFO("Logging started automatically");
 		NRF_LOG_FLUSH();
+		//TODO: sending status would be better handled in an interval timer (mobile or here)
 		send_status_packet();
 	}
 
