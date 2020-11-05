@@ -205,7 +205,7 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.4.0,alpha");
+            sprintf((char *)command_response_buffer, "version,0.4.1,beta");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
@@ -318,12 +318,18 @@ void command_interface_process_byte(char incoming)
         else if(strncmp(command_input_buffer, "syncstop", 8) == 0)
         {
             // Sync process was aborted by the user
-            NRF_LOG_INFO("cancel cat");
+            NRF_LOG_INFO("syncstop command received");
             NRF_LOG_FLUSH();
-            int close_result = lfs_file_close(m_lfs, &file);
-            NRF_LOG_INFO("cat close result: %d", close_result);
-            NRF_LOG_FLUSH();
-            sync_in_progress = false;
+            if (sync_in_progress)
+            {
+                int close_result = lfs_file_close(m_lfs, &file);
+                NRF_LOG_INFO("lfs close result: %d", close_result);
+                NRF_LOG_FLUSH();
+                sync_in_progress = false;
+            } else {
+                NRF_LOG_INFO("sync_in_progress was false");
+                NRF_LOG_FLUSH();
+            }
         }
 
         memset(command_input_buffer, 0, sizeof(command_input_buffer));
