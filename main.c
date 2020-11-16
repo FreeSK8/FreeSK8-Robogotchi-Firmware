@@ -1917,7 +1917,7 @@ void log_file_start()
 void update_status_packet(char * buffer)
 {
 	// Update the buffer with the a status response packet
-	sprintf(buffer, "status,OK,%d,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free, lfs_file_count);
+	sprintf(buffer, "status,OK,%d,%d,%d,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free, lfs_file_count, hgps.fix, hgps.sats_in_view);
 }
 
 
