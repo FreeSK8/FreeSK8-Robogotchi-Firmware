@@ -2407,7 +2407,7 @@ int main(void) {
 
 #if HAS_DISPLAY
 	//NOTE: display needs few ms before it will respond from cold boot
-	SSD1306_begin(SSD1306_SWITCHCAPVCC, 0x3C, false);
+	SSD1306_begin(SSD1306_SWITCHCAPVCC, SSD1306_I2C_ADDRESS, false);
 	Adafruit_GFX_init(SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT, SSD1306_drawPixel);
 
 	SSD1306_clearDisplay();
