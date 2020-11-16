@@ -1629,6 +1629,8 @@ static void logging_timer_handler(void *p_context) {
 		// Clear valid GPS status and fix flags for display
 		hgps.is_valid = 0;
 		hgps.fix = 0;
+		// Clear sats in view for status packet
+		hgps.sats_in_view = 0;
 		// Clear signal lock flag
 		gps_signal_locked = false;
 		melody_play(MELODY_GPS_LOST, true); // Play GPS lost melody, interrupt
