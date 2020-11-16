@@ -1452,12 +1452,10 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			log_file_stop();
 			NRF_LOG_INFO("Logging stopped due to power drop");
 			NRF_LOG_FLUSH();
-			send_status_packet();
 		} else if (currentTime - lastTimeBoardMoved > gotchi_cfg_user.log_auto_stop_idle_time) {
 			log_file_stop();
 			NRF_LOG_INFO("Logging stopped due to inactivity");
 			NRF_LOG_FLUSH();
-			send_status_packet();
 		} else if ((int)fabs(esc_telemetry.rpm) > gotchi_cfg_user.log_auto_start_erpm) {
 			// We are moving while logging. Keep it up!
 			lastTimeBoardMoved = currentTime;
@@ -1468,8 +1466,6 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 		log_file_start();
 		NRF_LOG_INFO("Logging started automatically");
 		NRF_LOG_FLUSH();
-		//TODO: sending status would be better handled in an interval timer (mobile or here)
-		send_status_packet();
 	}
 
 	// Finish packet processing
