@@ -122,6 +122,7 @@ static volatile bool log_file_active = false;
 static volatile bool write_logdata_now = false;
 static volatile bool gps_signal_locked = false;
 static time_t time_esc_last_responded; // For triggering TX and RX pin swapping
+static time_t time_gps_last_responded; // For detecting stale data
 
 ////////////////////////////////////////
 // Fault tracking
@@ -1617,6 +1618,21 @@ static void logging_timer_handler(void *p_context) {
 		// Reset the countdown
 		time_esc_last_responded = currentTime;
 	}
+
+	// Check if the GPS has not provided data while a signal lock was true
+	if (currentTime - time_gps_last_responded > 3 && gps_signal_locked)
+	{
+		NRF_LOG_INFO("GPS has not provided any data for 3 seconds.");
+		NRF_LOG_FLUSH();
+		// Clear the GPS seconds for display
+		hgps.seconds = 0;
+		// Clear valid GPS status and fix flags for display
+		hgps.is_valid = 0;
+		hgps.fix = 0;
+		// Clear signal lock flag
+		gps_signal_locked = false;
+		melody_play(MELODY_GPS_LOST, true); // Play GPS lost melody, interrupt
+	}
 }
 
 static void telemetry_timer_handler(void *p_context) {
@@ -2432,6 +2448,8 @@ int main(void) {
 	rtc_get_time();
 	// Set the last ESC response time to now
 	time_esc_last_responded = currentTime;
+	// Set the last GPS response time to now
+	time_gps_last_responded = currentTime;
 
 	NRF_LOG_INFO("RTC Initialized");
 	NRF_LOG_FLUSH();
@@ -2531,6 +2549,7 @@ int main(void) {
 		}
 
 		while (gps_uart_get(&byte) == NRF_SUCCESS) {
+			time_gps_last_responded = currentTime;
 			lwgps_process(&hgps, &byte, sizeof(byte));
 		}
 
