@@ -68,6 +68,19 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_FLUSH();
             command_interface_continue_transfer( command_input_buffer );
         }
+        else if( strncmp(&command_input_buffer[strlen(command_input_buffer)-4], "nack", 4) == 0)
+        {
+            NRF_LOG_INFO("NACK handler >%s<", command_input_buffer);
+            NRF_LOG_FLUSH();
+            // For a cat command we want to seek to the byte the client last received
+            if(strncmp(command_input_buffer, "cat", 3) == 0)
+            {
+                // Set the file position to what we've received on the client side
+                lfs_file_seek(m_lfs, &file, atoi(command_input_buffer+4), LFS_SEEK_SET);
+            }
+            // Continue to send data to the client
+            command_interface_continue_transfer(command_input_buffer);
+        }
         else if(strncmp(command_input_buffer, "log", 3) == 0)
         {
             if(strncmp(command_input_buffer + 3, "start", 5) == 0)
@@ -376,7 +389,7 @@ void command_interface_continue_transfer(char* command)
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
     }
-    else if(strncmp(command_input_buffer, "cat", 2) == 0)
+    else if(strncmp(command_input_buffer, "cat", 3) == 0)
     {
         NRF_LOG_INFO("command_interface_continue_transfer(TRANSFER_MODE_CAT)");
         NRF_LOG_FLUSH();
