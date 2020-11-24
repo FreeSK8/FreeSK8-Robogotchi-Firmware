@@ -315,6 +315,13 @@ void melody_step(void)
 			}
 		}
 	}
+	else
+	{
+		//TODO: This should not be necessary but a steady tone
+		//      seems to happen in some situations.
+		//TODO: This is not a patch and not the best solution
+		nrf_pwm_set_enabled(false);
+	}
 }
 
 void buzzer_init(void)
