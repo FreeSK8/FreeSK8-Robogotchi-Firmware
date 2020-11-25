@@ -115,6 +115,7 @@ void i2c_oled_comm_handle(uint8_t hdl_address, uint8_t *hdl_buffer, size_t hdl_b
 ////////////////////////////////////////
 #include "rtc.h"
 volatile bool update_rtc = false; // Set to true to trigger I2C communication with RTC module
+volatile bool rtc_time_has_sync = false; // Set to true when the RTC has been set by GPS or Mobile app
 struct tm * tmTime;
 time_t currentTime;
 static volatile char datetimestring[ 64 ] = { 0 };
@@ -1612,6 +1613,28 @@ static void logging_timer_handler(void *p_context) {
 		}
 	}
 
+	//TODO: Sync GPS time - this works but is UTC and we've made no commitment to timezones
+	/*
+	if (!rtc_time_has_sync && !log_file_active && hgps.seconds != 247 && hgps.seconds != 0)
+	{
+		// Update time in memory
+		tmTime->tm_year = 2000 + hgps.year - 1900;
+		tmTime->tm_mon = hgps.month - 1;
+		tmTime->tm_mday = hgps.date;
+		tmTime->tm_hour = hgps.hours;
+		tmTime->tm_min = hgps.minutes;
+		tmTime->tm_sec = hgps.seconds;
+		currentTime = mktime(tmTime);
+		currentTime += -6 * 60 * 60; //TODO: Add the user's offset from configuration
+
+		// Update time on RTC
+		update_rtc = true;
+
+		NRF_LOG_INFO("Setting time from GPS");
+		NRF_LOG_FLUSH();
+	}
+	*/
+
 	// Check if the ESC has not responded in 3 seconds and try swapping the TX and RX pins
 	if (currentTime - time_esc_last_responded > 3)
 	{
@@ -1623,7 +1646,7 @@ static void logging_timer_handler(void *p_context) {
 	}
 
 	// Check if the GPS has not provided data while a signal lock was true
-	if (currentTime - time_gps_last_responded > 3 && gps_signal_locked)
+	if (currentTime - time_gps_last_responded > 3)
 	{
 		NRF_LOG_INFO("GPS has not provided any data for 3 seconds.");
 		NRF_LOG_FLUSH();
@@ -1634,9 +1657,13 @@ static void logging_timer_handler(void *p_context) {
 		hgps.fix = 0;
 		// Clear sats in view for status packet
 		hgps.sats_in_view = 0;
-		// Clear signal lock flag
-		gps_signal_locked = false;
-		melody_play(MELODY_GPS_LOST, true); // Play GPS lost melody, interrupt
+		if (gps_signal_locked)
+		{
+			// Clear signal lock flag
+			gps_signal_locked = false;
+			melody_play(MELODY_GPS_LOST, true); // Play GPS lost melody, interrupt
+		}
+		time_gps_last_responded = currentTime;
 	}
 }
 
@@ -2561,6 +2588,7 @@ int main(void) {
 		if (update_rtc) {
 			update_rtc = false;
 			rtc_set_time( tmTime->tm_year + 1900, tmTime->tm_mon + 1, tmTime->tm_mday, tmTime->tm_hour, tmTime->tm_min, tmTime->tm_sec );
+			rtc_time_has_sync = true;
 		}
 #if HAS_DISPLAY
 		if (update_display) {
