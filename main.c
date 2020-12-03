@@ -90,6 +90,15 @@ const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
 lwgps_t hgps;
 
 ////////////////////////////////////////
+// Button input
+////////////////////////////////////////
+#include "nrf_gpio.h"
+#define PIN_BUTTON 10
+#define PIN_BUTTON2 9
+#define isButtonPressed !nrf_gpio_pin_read(PIN_BUTTON)
+#define isButton2Pressed !nrf_gpio_pin_read(PIN_BUTTON2)
+
+////////////////////////////////////////
 // ESC data
 ////////////////////////////////////////
 static volatile TELEMETRY_DATA esc_telemetry;
@@ -128,10 +137,17 @@ static time_t time_gps_last_responded; // For detecting stale data
 ////////////////////////////////////////
 // Fault tracking
 ////////////////////////////////////////
-static uint16_t fault_count = 0;
-#define RECENT_FAULT_LIMIT 12
-static uint8_t recent_faults[RECENT_FAULT_LIMIT] = {0};
-static uint8_t recent_fault_index = 0;
+struct esc_fault {
+	uint8_t fault_code;
+	uint16_t fault_count;
+	uint16_t esc_id;
+	time_t dt_first_seen;
+	time_t dt_last_seen;
+};
+static uint16_t fault_count = 0; // Count of messages containing fault codes
+#define RECENT_FAULT_LIMIT 12 // Limit the fault code historical array
+static uint8_t recent_fault_index = 0; // Track current index of historical array
+static struct esc_fault recent_faults[RECENT_FAULT_LIMIT] = {0}; // Historical array of faults
 
 ////////////////////////////////////////
 // Piezo
@@ -269,12 +285,13 @@ void melody_play(int index, bool interrupt_melody)
 	nrf_pwm_set_enabled(true);
 }
 
-void melody_step(void)
+static void melody_step(void)
 {
 	if (is_melody_playing)
 	{
-		// Check if we've reached the end
-		if ((melody_this_note >= melody_notes *2))
+		// Check if we've reached the end or the user pressed button 2
+		// to stop the melody
+		if ((melody_this_note >= melody_notes *2) || isButton2Pressed)
 		{
 			melody_this_note = 0;
 			is_melody_playing = false;
@@ -380,15 +397,6 @@ void beep_speaker_blocking(int duration_ms, int duty_haha_duty)
 }
 
 ////////////////////////////////////////
-// Button input
-////////////////////////////////////////
-#include "nrf_gpio.h"
-#define PIN_BUTTON 10
-#define PIN_BUTTON2 9
-#define isButtonPressed !nrf_gpio_pin_read(PIN_BUTTON)
-#define isButton2Pressed !nrf_gpio_pin_read(PIN_BUTTON2)
-
-////////////////////////////////////////
 //LITTLEFS
 ////////////////////////////////////////
 bool sync_in_progress = false;
@@ -433,6 +441,9 @@ int qspi_sync(const struct lfs_config *c)
 uint16_t lfs_file_count = 0;
 static lfs_t lfs;
 static lfs_file_t file;
+static uint8_t lfs_read_buf[256]; // Must be cache_size
+static uint8_t lfs_prog_buf[256]; // Must be cache_size
+static uint8_t lfs_lookahead_buf[16];	// 128/8=16
 
 // configuration of the filesystem is provided by this struct
 const struct lfs_config cfg = {
@@ -447,9 +458,13 @@ const struct lfs_config cfg = {
     .prog_size = 4,
     .block_size = 4096,
     .block_count = 8192, //4096 bytes/block @ 256Mbit (33554432 bytes) = 8192 blocks
-    .cache_size = 2048,
+    .cache_size = 256,
     .lookahead_size = 16,
     .block_cycles = 500,
+
+	.read_buffer = lfs_read_buf,
+	.prog_buffer = lfs_prog_buf,
+	.lookahead_buffer = lfs_lookahead_buf,
 };
 
 ////////////////////////////////////////
@@ -1340,16 +1355,29 @@ void send_status_packet()
 	}
 }
 
-static bool is_fault_new(uint8_t p_fault_code)
+static bool is_fault_new(uint8_t p_fault_code, int p_esc_id)
 {
 	for(int i=0; i<recent_fault_index;++i)
 	{
-		if(p_fault_code == recent_faults[i])
+		if(p_fault_code == recent_faults[i].fault_code && p_esc_id == recent_faults[i].esc_id)
 		{
 			return false;
 		}
 	}
 	return true;
+}
+
+static void update_fault(uint8_t p_fault_code, int p_esc_id)
+{
+	for(int i=0; i<recent_fault_index;++i)
+	{
+		if(p_fault_code == recent_faults[i].fault_code && p_esc_id == recent_faults[i].esc_id)
+		{
+			++recent_faults[i].fault_count;
+			recent_faults[i].dt_last_seen = currentTime;
+			return;
+		}
+	}
 }
 
 #define FW5_PACKET_LENGTH 73
@@ -1411,13 +1439,19 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			++fault_count;
 
 			// Track fault codes that have been seen
-			if (is_fault_new(esc_telemetry.fault_code))
+			if (is_fault_new(esc_telemetry.fault_code, esc_telemetry.vesc_id))
 			{
-				recent_faults[recent_fault_index] = esc_telemetry.fault_code;
+				recent_faults[recent_fault_index].fault_code = esc_telemetry.fault_code;
+				recent_faults[recent_fault_index].fault_count = 1;
+				recent_faults[recent_fault_index].esc_id = esc_telemetry.vesc_id;
+				recent_faults[recent_fault_index].dt_first_seen = currentTime;
+				recent_faults[recent_fault_index].dt_last_seen = currentTime;
 				if(recent_fault_index < RECENT_FAULT_LIMIT)
 				{
 					++recent_fault_index;
 				}
+			} else {
+				update_fault(esc_telemetry.fault_code, esc_telemetry.vesc_id);
 			}
 
 			// Alert user, don't interrupt current melody
@@ -1952,6 +1986,27 @@ void update_status_packet(char * buffer)
 	sprintf(buffer, "status,OK,%d,%d,%d,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free, lfs_file_count, hgps.fix, hgps.sats_in_view);
 }
 
+uint16_t create_fault_packet(char * buffer)
+{
+	NRF_LOG_INFO("fault data size: %d", sizeof(struct esc_fault));
+	NRF_LOG_FLUSH();
+	NRF_LOG_INFO("timesize %d", sizeof(time_t));
+	NRF_LOG_FLUSH();
+	NRF_LOG_INFO("dt %ld", recent_faults[0].dt_first_seen);
+	NRF_LOG_FLUSH();
+
+	uint16_t buffer_position = 0;
+	buffer_position = sprintf(buffer, "faults,%02d,", recent_fault_index);
+	//TODO: include all faults
+	//      requires multiple messages and I'm not interested atm
+	for(int i=0; i<6;++i)
+	{
+		memcpy(buffer + buffer_position, &recent_faults[i], sizeof(struct esc_fault));
+		buffer_position += sizeof(struct esc_fault);
+		//sprintf(buffer + buffer_position, "%d,%d,%d,%ld,", recent_faults[i].fault_code, recent_faults[i].fault_count, recent_faults[i].esc_id, recent_faults[i].dt_last_seen)
+	}
+	return buffer_position;
+}
 
 void littlefs_init()
 {

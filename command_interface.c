@@ -15,6 +15,7 @@ extern uint8_t lfs_free_space_check(void);
 extern int log_file_stop();
 extern void log_file_start();
 extern void update_status_packet(char * buffer);
+extern uint16_t create_fault_packet(char * buffer);
 extern uint16_t m_ble_fus_max_data_len;
 
 extern void user_cfg_set(void);
@@ -210,6 +211,12 @@ void command_interface_process_byte(char incoming)
             update_status_packet((char *)command_response_buffer);
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
+        else if(strncmp(command_input_buffer, "faults", 6) == 0)
+        {
+            NRF_LOG_INFO("command_interface: faults command received");
+            uint16_t packet_size = create_fault_packet((char *)command_response_buffer);
+            m_ble_tx_logbuffer(command_response_buffer, packet_size);
+        }
         else if(strncmp(command_input_buffer, "dfumode", 7) == 0)
         {
             // Set flag for DFU mode and reset device
@@ -218,7 +225,7 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.5.0,beta");
+            sprintf((char *)command_response_buffer, "version,0.6.0,beta");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
