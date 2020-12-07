@@ -21,6 +21,76 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// PACKET_START, LOG_MSG_TYPE, LENGTH, MESSAGE, PACKET_END
+
+#define PACKET_START 0x0d
+#define PACKET_END 0x0a
+
+typedef enum {
+	DEBUG = 0,
+	HEADER,
+	ESC,
+	ESC_DELTA,
+	GPS,
+	GPS_DELTA,
+	IMU,
+	BMS,
+} LOG_MSG_TYPES;
+
+typedef struct {
+	uint16_t version; // Log file version identifies changes in struct(s)
+} LOG_HEADER;
+
+typedef struct {
+	uint64_t dt;
+	uint16_t esc_id;
+	uint16_t vin; // Div/10
+	uint16_t motor_temp; // Div/10
+	uint16_t mosfet_temp; // Div/10
+	uint16_t duty_cycle; // Div/10
+	uint16_t motor_current; // Div/10
+	uint16_t battery_current; // Div/10
+	uint16_t watt_hours; // Div/10
+	uint16_t watt_hours_regen; // Div/10
+	uint32_t e_rpm;
+	uint32_t e_distance;
+	uint8_t fault;
+} LOG_ESC;
+
+typedef struct {
+	uint8_t dt; // Div/10 // Up to 25.5 seconds elapsed
+	uint16_t esc_id;
+	int8_t vin; // Div/10 // +-12.7 change
+	int8_t motor_temp; // Div/10 // +-12.7 change
+	int8_t mosfet_temp; // Div/10 // +-12.7 change
+	int16_t duty_cycle; // Div/10
+	int16_t motor_current; // Div/10
+	int16_t battery_current; // Div/10
+	uint8_t watt_hours; // Div/10 // Up to 25.4 increase
+	uint8_t watt_hours_regen; // Div/10 // Up to 25.4 increase
+	int16_t e_rpm; // +-32767
+	int16_t e_distance; // +-32767
+	uint8_t fault;
+} LOG_ESC_DELTA;
+
+typedef struct {
+	uint64_t dt;
+	uint8_t satellites;
+	uint16_t altitude; // Div/10
+	uint16_t speed; // Div/10
+	float latitude;
+	float longitude;
+} LOG_GPS;
+
+typedef struct {
+	uint8_t dt; // Up to 255 seconds elapsed
+	uint8_t satellites;
+	int8_t altitude; // Div/10 // +-12.7 change
+	int8_t speed; // Div/10 // +-12.7 change
+	int16_t latitude; // Div/10000 // +-3.2767
+	int16_t longitude; // Div/10000 // +-3.2767
+} LOG_GPS_DELTA;
+
 typedef enum {
 	MOTE_PACKET_BATT_LEVEL = 0,
 	MOTE_PACKET_BUTTONS,
