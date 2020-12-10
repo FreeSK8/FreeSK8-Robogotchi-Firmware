@@ -88,6 +88,8 @@ const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
 // GPS handle
 ////////////////////////////////////////
 lwgps_t hgps;
+static LOG_GPS log_message_gps;
+static LOG_GPS_DELTA log_message_gps_delta;
 
 ////////////////////////////////////////
 // Button input
@@ -103,6 +105,8 @@ lwgps_t hgps;
 ////////////////////////////////////////
 static volatile TELEMETRY_DATA esc_telemetry;
 static volatile int esc_rx_cnt = 0;
+static LOG_ESC log_message_esc;
+static LOG_ESC_DELTA log_message_esc_delta;
 
 ////////////////////////////////////////
 // Display
@@ -127,7 +131,7 @@ volatile bool update_rtc = false; // Set to true to trigger I2C communication wi
 volatile bool rtc_time_has_sync = false; // Set to true when the RTC has been set by GPS or Mobile app
 struct tm * tmTime;
 time_t currentTime;
-static volatile char datetimestring[ 64 ] = { 0 };
+static char datetimestring[ 64 ] = { 0 };
 static volatile bool log_file_active = false;
 static volatile bool write_logdata_now = false;
 static volatile bool gps_signal_locked = false;
@@ -444,6 +448,8 @@ static lfs_file_t file;
 static uint8_t lfs_read_buf[256]; // Must be cache_size
 static uint8_t lfs_prog_buf[256]; // Must be cache_size
 static uint8_t lfs_lookahead_buf[16];	// 128/8=16
+static uint8_t lfs_file_buf[256]; // Must be cache size
+static struct lfs_file_config lfs_file_config;
 
 // configuration of the filesystem is provided by this struct
 const struct lfs_config cfg = {
@@ -1415,21 +1421,31 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			// Clear write now flag
 			write_logdata_now = false;
 
-			char values_buffer[ 256 ] = {0};
+			log_message_esc.dt = currentTime;
+			NRF_LOG_INFO("ESC time: %ld", log_message_esc.dt);
+			NRF_LOG_FLUSH();
+
+			log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
+			log_message_esc.e_distance = esc_telemetry.tachometer_abs;
+			log_message_esc.e_rpm = esc_telemetry.rpm;
+			log_message_esc.esc_id = esc_telemetry.vesc_id;
+			log_message_esc.fault = esc_telemetry.fault_code;
+			log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
+			log_message_esc.motor_current = esc_telemetry.current_motor * 10;
+			log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
+			log_message_esc.vin = esc_telemetry.v_in * 10;
+			log_message_esc.watt_hours = esc_telemetry.watt_hours * 10;
+			log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 10;
+
+			// Write ESC telemetry data
 			size_t bytes_written = 0;
-			// Write fault codes to their own line
-			if (esc_telemetry.fault_code != 0) {
-				sprintf( values_buffer, "%s,fault,%s,%d,%d\n", datetimestring,  mc_fault_to_string(esc_telemetry.fault_code), esc_telemetry.fault_code, esc_telemetry.vesc_id);
-				bytes_written = lfs_file_write(&lfs, &file, values_buffer, strlen(values_buffer));
-				NRF_LOG_INFO("ESC Bytes Written: %ld", bytes_written);
-				NRF_LOG_INFO("ESC Data Written: %s",values_buffer);
-				NRF_LOG_FLUSH();
-			}
-			// Write minimum telemetry data set
-			sprintf( values_buffer, "%s,values,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%d,%d\n", datetimestring, esc_telemetry.v_in, esc_telemetry.temp_motor, esc_telemetry.temp_mos, esc_telemetry.duty_now,esc_telemetry.current_motor,esc_telemetry.current_in, esc_telemetry.rpm, esc_telemetry.tachometer_abs,esc_telemetry.vesc_id);
-			if (log_file_active) bytes_written = lfs_file_write(&lfs, &file, values_buffer, strlen(values_buffer));
-			NRF_LOG_INFO("ESC Bytes Written: %ld", bytes_written);
-			NRF_LOG_INFO("ESC Data Written: %s",values_buffer);
+			char start[3] = {PACKET_START, ESC, sizeof(log_message_esc)};
+			char end[1] = {PACKET_END};
+			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+			bytes_written += lfs_file_write(&lfs, &file, &log_message_esc, sizeof(log_message_esc));
+			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+
+			NRF_LOG_INFO("ESC Bytes Written: %ld",bytes_written);
 			NRF_LOG_FLUSH();
 		}
 
@@ -1575,27 +1591,16 @@ static void packet_timer_handler(void *p_context) {
 
 static void logging_timer_handler(void *p_context) {
 	(void)p_context;
+	static char gps_status[11] = {0};
 
 	// Increment time by 1 second as this is called at 1Hz
 	currentTime++;
 	tmTime = localtime( &currentTime );
 
-	char dt_string[64] = {0};
-	strftime(dt_string, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
-	for(int i=0; i<strlen(dt_string)+1; ++i)
-	{
-		datetimestring[i] = dt_string[i];
-	}
-
-	// Print debugging information
-	char debug_buff[196] = {0};
-	sprintf(debug_buff, "1Hz: %s, GPS: Valid %d, Fix %d, Mode %d, Lat %f Lon %f, SatInView %d, Seconds %d", datetimestring, hgps.is_valid, hgps.fix, hgps.fix_mode, hgps.latitude, hgps.longitude, hgps.sats_in_view, hgps.seconds);
-	NRF_LOG_INFO("%s", debug_buff);
-	NRF_LOG_FLUSH();
+	strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
 
 	// Write GPS status to display
 	Adafruit_GFX_setCursor(64,8);
-	char gps_status[11] = {0};
 	snprintf(gps_status, sizeof(gps_status), "GPS %02d S%01d%01d", hgps.seconds, hgps.is_valid, hgps.fix);
 	Adafruit_GFX_print(gps_status);
 	update_display = true;
@@ -1603,12 +1608,21 @@ static void logging_timer_handler(void *p_context) {
 	// If logging is active and GPS is valid and fixed log GPS data
 	if (log_file_active && hgps.is_valid && hgps.fix > 0)
 	{
-		static char position_buffer[128]; //TODO: consolidate values and position buffers
-		sprintf(position_buffer, "%s,position,%0.5f,%0.5f,%d,%0.1f,%0.1f\n", datetimestring, hgps.latitude, hgps.longitude, hgps.sats_in_view, hgps.altitude, hgps.speed);
+		log_message_gps.dt = currentTime;
+		log_message_gps.satellites = hgps.sats_in_view;
+		log_message_gps.altitude = fabs(hgps.altitude) * 10;
+		log_message_gps.speed = fabs(hgps.speed) * 10;
+		log_message_gps.latitude = hgps.latitude * 10000;
+		log_message_gps.longitude = hgps.longitude * 10000;
 		if (log_file_active)
 		{
-			size_t gps_write_result = lfs_file_write(&lfs, &file, position_buffer, strlen(position_buffer));
-			NRF_LOG_INFO("GPS Bytes Written: %ld", gps_write_result);
+			size_t bytes_written = 0;
+			char start[3] = {PACKET_START, GPS, sizeof(log_message_gps)};
+			char end[1] = {PACKET_END};
+			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+			bytes_written += lfs_file_write(&lfs, &file, &log_message_gps, sizeof(log_message_gps));
+			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+			NRF_LOG_INFO("GPS Bytes Written: %ld", bytes_written);
 			NRF_LOG_FLUSH();
 		}
 	}
@@ -1958,7 +1972,7 @@ void log_file_start()
 	NRF_LOG_INFO("Creating log file: %s",filename);
 	NRF_LOG_FLUSH();
 
-	int file_open_result = lfs_file_open(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT);
+	int file_open_result = lfs_file_opencfg(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT, &lfs_file_config);
 	if (file_open_result >= 0)
 	{
 		NRF_LOG_INFO("log_file_active");
@@ -2034,8 +2048,13 @@ void littlefs_init()
     NRF_LOG_INFO("LittleFS initialized");
     NRF_LOG_FLUSH();
 
+	// Prepare the static file buffer
+	memset(&lfs_file_config, 0, sizeof(struct lfs_file_config));
+	lfs_file_config.buffer = lfs_file_buf;
+	lfs_file_config.attr_count = 0;
+
     // read current count  
-    lfs_file_open(&lfs, &file, "boot_count", LFS_O_RDWR | LFS_O_CREAT);
+    lfs_file_opencfg(&lfs, &file, "boot_count", LFS_O_RDWR | LFS_O_CREAT, &lfs_file_config);
     lfs_file_read(&lfs, &file, &boot_count, sizeof(boot_count));
     NRF_LOG_INFO("Read file complete. Boot count: %d", boot_count);
 
@@ -2111,7 +2130,7 @@ void user_cfg_set(void)
 {
 	NRF_LOG_INFO("Saving User Configuration");
 	NRF_LOG_FLUSH();
-	lfs_file_open(&lfs, &file, "user_configuration", LFS_O_RDWR | LFS_O_CREAT);
+	lfs_file_opencfg(&lfs, &file, "user_configuration", LFS_O_RDWR | LFS_O_CREAT, &lfs_file_config);
 	lfs_file_write(&lfs, &file, &gotchi_cfg_user, sizeof(gotchi_cfg_user));
 	lfs_file_close(&lfs, &file);
 	NRF_LOG_INFO("User Configuration Saved");
@@ -2127,7 +2146,7 @@ void user_cfg_get(void)
 	lfs_stat(&lfs, "user_configuration", &info);
 	if (info.size >= sizeof(gotchi_cfg_user))
 	{
-		lfs_file_open(&lfs, &file, "user_configuration", LFS_O_RDONLY);
+		lfs_file_opencfg(&lfs, &file, "user_configuration", LFS_O_RDONLY, &lfs_file_config);
 		lfs_file_read(&lfs, &file, &gotchi_cfg_user, sizeof(gotchi_cfg_user));
 		lfs_file_close(&lfs, &file);
 		NRF_LOG_INFO("User Configuration Loaded");
