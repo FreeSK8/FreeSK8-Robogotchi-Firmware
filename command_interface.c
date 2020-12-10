@@ -22,6 +22,8 @@ extern void user_cfg_set(void);
 extern struct gotchi_configuration gotchi_cfg_user;
 
 static lfs_file_t file;
+static uint8_t lfs_file_buf[256]; // Must be cache size
+static struct lfs_file_config lfs_file_config;
 static lfs_dir_t directory;
 static int32_t bytes_sent = -1; //file.ctz.size;
 
@@ -40,6 +42,11 @@ void command_interface_init(void (*ble_send_logbuffer)(unsigned char *, unsigned
     ASSERT(ble_send_logbuffer != NULL);
     m_lfs = lfs;
     m_ble_tx_logbuffer = ble_send_logbuffer;
+
+    // Prepare the static file buffer
+	memset(&lfs_file_config, 0, sizeof(struct lfs_file_config));
+	lfs_file_config.buffer = lfs_file_buf;
+	lfs_file_config.attr_count = 0;
 }
 
 extern time_t currentTime;
@@ -73,14 +80,17 @@ void command_interface_process_byte(char incoming)
         {
             NRF_LOG_INFO("NACK handler >%s<", command_input_buffer);
             NRF_LOG_FLUSH();
-            // For a cat command we want to seek to the byte the client last received
-            if(strncmp(command_input_buffer, "cat", 3) == 0)
+            if (sync_in_progress)
             {
-                // Set the file position to what we've received on the client side
-                lfs_file_seek(m_lfs, &file, atoi(command_input_buffer+4), LFS_SEEK_SET);
+                // For a cat command we want to seek to the byte the client last received
+                if(strncmp(command_input_buffer, "cat", 3) == 0)
+                {
+                    // Set the file position to what we've received on the client side
+                    lfs_file_seek(m_lfs, &file, atoi(command_input_buffer+4), LFS_SEEK_SET);
+                }
+                // Continue to send data to the client
+                command_interface_continue_transfer(command_input_buffer);
             }
-            // Continue to send data to the client
-            command_interface_continue_transfer(command_input_buffer);
         }
         else if(strncmp(command_input_buffer, "log", 3) == 0)
         {
@@ -168,7 +178,7 @@ void command_interface_process_byte(char incoming)
 
             NRF_LOG_INFO("filename %s", filename);
             NRF_LOG_FLUSH();
-            if(lfs_file_open(m_lfs, &file, filename, LFS_O_RDONLY) >= 0)
+            if(lfs_file_opencfg(m_lfs, &file, filename, LFS_O_RDONLY, &lfs_file_config) >= 0)
             {
                 sprintf((char *)command_response_buffer, "cat,%s", filename);
                 m_ble_tx_logbuffer(command_response_buffer, (size_t)strlen((const char *)command_response_buffer));
@@ -225,7 +235,7 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.6.0,beta");
+            sprintf((char *)command_response_buffer, "version,0.7.0,beta");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
@@ -418,8 +428,6 @@ void command_interface_continue_transfer(char* command)
         else if(bytes_sent < file.ctz.size)
         {
             int32_t read_response = lfs_file_read(m_lfs, &file, &command_response_buffer, m_ble_fus_max_data_len);
-            //NRF_LOG_INFO("read_response = %d", read_response);
-            //NRF_LOG_FLUSH();
             if(read_response > 0)
             {
                 m_ble_tx_logbuffer(command_response_buffer, read_response);
