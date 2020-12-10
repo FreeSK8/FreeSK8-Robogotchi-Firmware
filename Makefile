@@ -325,6 +325,8 @@ CFLAGS += -std=gnu99 -D_GNU_SOURCE
 # Set NFC pins to be used as GPIO
 CFLAGS += -DCONFIG_NFCT_PINS_AS_GPIOS
 CFLAGS += -DAPP_TIMER_V2 -DAPP_TIMER_V2_RTC1_ENABLED
+# Use only static filesystem buffers
+CFLAGS += -DLFS_NO_MALLOC
 
 # C++ flags common to all targets
 CXXFLAGS += $(OPT)
