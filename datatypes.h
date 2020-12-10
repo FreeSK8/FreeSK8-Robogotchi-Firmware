@@ -42,19 +42,25 @@ typedef struct {
 } LOG_HEADER;
 
 typedef struct {
-	uint64_t dt;
+	time_t dt;
+
 	uint16_t esc_id;
 	uint16_t vin; // Div/10
 	uint16_t motor_temp; // Div/10
 	uint16_t mosfet_temp; // Div/10
+
 	uint16_t duty_cycle; // Div/10
 	uint16_t motor_current; // Div/10
 	uint16_t battery_current; // Div/10
 	uint16_t watt_hours; // Div/10
+
 	uint16_t watt_hours_regen; // Div/10
+	uint8_t fault;
+	uint8_t not_used; //NOTE: padding
+	uint32_t not_used2;  //NOTE: padding
+
 	uint32_t e_rpm;
 	uint32_t e_distance;
-	uint8_t fault;
 } LOG_ESC;
 
 typedef struct {
@@ -74,12 +80,14 @@ typedef struct {
 } LOG_ESC_DELTA;
 
 typedef struct {
-	uint64_t dt;
+	time_t dt;
 	uint8_t satellites;
+	//NOTE: 8 bit padding
 	uint16_t altitude; // Div/10
 	uint16_t speed; // Div/10
-	float latitude;
-	float longitude;
+	//NOTE: 16 bit padding
+	int32_t latitude; // Div/10000
+	int32_t longitude; // Div/10000
 } LOG_GPS;
 
 typedef struct {
