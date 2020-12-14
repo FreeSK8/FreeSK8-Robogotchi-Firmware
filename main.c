@@ -165,10 +165,10 @@ static int melody_wholenote = 0;
 static int melody_divider = 0;
 static int melody_note_duration = 0;
 static int melody_this_note = 0;
-static bool is_melody_playing = false;
-static bool is_melody_playing_pause = false;
+static volatile bool is_melody_playing = false;
+static volatile bool is_melody_playing_pause = false;
 static uint32_t melody_next_note = 0;
-static int *melody;
+static volatile int *melody;
 
 void set_frequency_and_duty_cycle(uint32_t frequency, uint32_t duty_cycle_percent)
 {
@@ -289,7 +289,7 @@ void melody_play(int index, bool interrupt_melody)
 	nrf_pwm_set_enabled(true);
 }
 
-static void melody_step(void)
+void melody_step(void)
 {
 	if (is_melody_playing)
 	{
@@ -1608,19 +1608,62 @@ static void logging_timer_handler(void *p_context) {
 	// If logging is active and GPS is valid and fixed log GPS data
 	if (log_file_active && hgps.is_valid && hgps.fix > 0)
 	{
-		log_message_gps.dt = currentTime;
-		log_message_gps.satellites = hgps.sats_in_view;
-		log_message_gps.altitude = fabs(hgps.altitude) * 10;
-		log_message_gps.speed = fabs(hgps.speed) * 10;
-		log_message_gps.latitude = hgps.latitude * 10000;
-		log_message_gps.longitude = hgps.longitude * 10000;
-		if (log_file_active)
+		// If we have not yet logged a full GPS message do so now
+		if 	(log_message_gps.dt == 0 ||
+				// Or we have drifted too far from the last record we must write a full GPS message
+				(
+					currentTime - log_message_gps.dt > 255 ||
+					fabs(hgps.altitude) * 10 - log_message_gps.altitude > 127 ||
+					fabs(hgps.speed) * 10 - log_message_gps.speed > 127 ||
+					fabs(hgps.latitude) * 10000 - fabs(log_message_gps.latitude) > 32767 ||
+					fabs(hgps.longitude) * 10000 - fabs(log_message_gps.longitude) > 32767
+				)
+			)
 		{
+			//TODO: duplicated code
+			log_message_gps.dt = currentTime;
+			log_message_gps.satellites = hgps.sats_in_view;
+			log_message_gps.altitude = fabs(hgps.altitude) * 10;
+			log_message_gps.speed = fabs(hgps.speed) * 10;
+			log_message_gps.latitude = hgps.latitude * 10000;
+			log_message_gps.longitude = hgps.longitude * 10000;
+
+			// Write out full GPS message
 			size_t bytes_written = 0;
 			char start[3] = {PACKET_START, GPS, sizeof(log_message_gps)};
 			char end[1] = {PACKET_END};
 			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
 			bytes_written += lfs_file_write(&lfs, &file, &log_message_gps, sizeof(log_message_gps));
+			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+			NRF_LOG_INFO("GPS Bytes Written: %ld", bytes_written);
+			NRF_LOG_FLUSH();
+		}
+		// We can write a GPS Delta message!
+		else
+		{
+			// Update delta message
+			log_message_gps_delta.dt = currentTime - log_message_gps.dt;
+			log_message_gps_delta.satellites = hgps.sats_in_view - log_message_gps.satellites;
+			log_message_gps_delta.altitude = fabs(hgps.altitude) * 10 - log_message_gps.altitude;
+			log_message_gps_delta.speed = fabs(hgps.speed) * 10 - log_message_gps.speed;
+			log_message_gps_delta.latitude = hgps.latitude * 10000 - log_message_gps.latitude;
+			log_message_gps_delta.longitude = hgps.longitude * 10000 - log_message_gps.longitude;
+
+			// Update full message
+			//TODO: duplicated code
+			log_message_gps.dt = currentTime;
+			log_message_gps.satellites = hgps.sats_in_view;
+			log_message_gps.altitude = fabs(hgps.altitude) * 10;
+			log_message_gps.speed = fabs(hgps.speed) * 10;
+			log_message_gps.latitude = hgps.latitude * 10000;
+			log_message_gps.longitude = hgps.longitude * 10000;
+
+			// Write out GPS delta message
+			size_t bytes_written = 0;
+			char start[3] = {PACKET_START, GPS_DELTA, sizeof(log_message_gps_delta)};
+			char end[1] = {PACKET_END};
+			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+			bytes_written += lfs_file_write(&lfs, &file, &log_message_gps_delta, sizeof(log_message_gps_delta));
 			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
 			NRF_LOG_INFO("GPS Bytes Written: %ld", bytes_written);
 			NRF_LOG_FLUSH();
@@ -1922,6 +1965,9 @@ int log_file_stop()
 		Adafruit_GFX_print(display_text_buffer);
 		update_display = true;
 #endif
+		// Clear log messages for delta processing
+		memset(&log_message_gps,0,sizeof(log_message_gps));
+
 		int lfs_close_result = lfs_file_close(&lfs, &file);
 		NRF_LOG_INFO("log_file_stop::lfs_file_close() result: %d", lfs_close_result);
 		NRF_LOG_FLUSH();
