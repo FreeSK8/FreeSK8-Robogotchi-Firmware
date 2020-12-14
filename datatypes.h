@@ -86,8 +86,8 @@ typedef struct {
 	uint16_t altitude; // Div/10
 	uint16_t speed; // Div/10
 	//NOTE: 16 bit padding
-	int32_t latitude; // Div/10000
-	int32_t longitude; // Div/10000
+	int32_t latitude; // Div/100000
+	int32_t longitude; // Div/100000
 } LOG_GPS;
 
 typedef struct {
@@ -95,8 +95,8 @@ typedef struct {
 	int8_t satellites;
 	int8_t altitude; // Div/10 // +-12.7 change
 	int8_t speed; // Div/10 // +-12.7 change
-	int16_t latitude; // Div/10000 // +-3.2767
-	int16_t longitude; // Div/10000 // +-3.2767
+	int16_t latitude; // Div/100000 // +-0.32767
+	int16_t longitude; // Div/100000 // +-0.32767
 } LOG_GPS_DELTA;
 
 typedef enum {
