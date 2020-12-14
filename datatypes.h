@@ -92,7 +92,7 @@ typedef struct {
 
 typedef struct {
 	uint8_t dt; // Up to 255 seconds elapsed
-	uint8_t satellites;
+	int8_t satellites;
 	int8_t altitude; // Div/10 // +-12.7 change
 	int8_t speed; // Div/10 // +-12.7 change
 	int16_t latitude; // Div/10000 // +-3.2767
