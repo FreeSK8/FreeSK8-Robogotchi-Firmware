@@ -1416,37 +1416,94 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 		esc_telemetry.vq = buffer_get_float32(data,100.0,&index);
 
 		//TODO: If there is a fault we would like to write_logdata_now but still need a sensible rate limit to protect storage
+		// Write data to log file if log_file_active and we have been flagged to write this iteration
 		if (log_file_active && write_logdata_now)
 		{
 			// Clear write now flag
 			write_logdata_now = false;
 
-			log_message_esc.dt = currentTime;
-			NRF_LOG_INFO("ESC time: %ld", log_message_esc.dt);
-			NRF_LOG_FLUSH();
+			// If we have not yet logged a full ESC message do so now
+			if (log_message_esc.dt == 0 ||
+				// Or we have drifted too far from the last record we must write a full ESC message
+				(
+					currentTime - log_message_esc.dt > 255 ||
+					esc_telemetry.v_in * 10 - log_message_esc.vin > 127 ||
+					esc_telemetry.temp_motor * 10 - log_message_esc.motor_temp > 127 ||
+					esc_telemetry.temp_mos * 10 - log_message_esc.mosfet_temp > 127 ||
+					esc_telemetry.watt_hours * 10 - log_message_esc.watt_hours > 127 ||
+					esc_telemetry.watt_hours_charged * 10 - log_message_esc.watt_hours_regen > 127 ||
+					abs(esc_telemetry.rpm - log_message_esc.e_rpm) > 32767 ||
+					abs(esc_telemetry.tachometer_abs - log_message_esc.e_distance) > 32767
+				)
+			)
+			{
+				//TODO: duplicated code
+				log_message_esc.dt = currentTime;
+				log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
+				log_message_esc.e_distance = esc_telemetry.tachometer_abs;
+				log_message_esc.e_rpm = esc_telemetry.rpm;
+				log_message_esc.esc_id = esc_telemetry.vesc_id;
+				log_message_esc.fault = esc_telemetry.fault_code;
+				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
+				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
+				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
+				log_message_esc.vin = esc_telemetry.v_in * 10;
+				log_message_esc.watt_hours = esc_telemetry.watt_hours * 10;
+				log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 10;
 
-			log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
-			log_message_esc.e_distance = esc_telemetry.tachometer_abs;
-			log_message_esc.e_rpm = esc_telemetry.rpm;
-			log_message_esc.esc_id = esc_telemetry.vesc_id;
-			log_message_esc.fault = esc_telemetry.fault_code;
-			log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
-			log_message_esc.motor_current = esc_telemetry.current_motor * 10;
-			log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
-			log_message_esc.vin = esc_telemetry.v_in * 10;
-			log_message_esc.watt_hours = esc_telemetry.watt_hours * 10;
-			log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 10;
+				// Write ESC telemetry data
+				size_t bytes_written = 0;
+				char start[3] = {PACKET_START, ESC, sizeof(log_message_esc)};
+				char end[1] = {PACKET_END};
+				bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+				bytes_written += lfs_file_write(&lfs, &file, &log_message_esc, sizeof(log_message_esc));
+				bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
 
-			// Write ESC telemetry data
-			size_t bytes_written = 0;
-			char start[3] = {PACKET_START, ESC, sizeof(log_message_esc)};
-			char end[1] = {PACKET_END};
-			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
-			bytes_written += lfs_file_write(&lfs, &file, &log_message_esc, sizeof(log_message_esc));
-			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+				NRF_LOG_INFO("ESC Bytes Written: %ld",bytes_written);
+				NRF_LOG_FLUSH();
+			}
+			else
+			{
+				// Update delta message
+				log_message_esc_delta.dt = currentTime - log_message_esc.dt;
+				log_message_esc_delta.esc_id = esc_telemetry.vesc_id;
+				log_message_esc_delta.vin = esc_telemetry.v_in * 10 - log_message_esc.vin;
+				log_message_esc_delta.motor_temp = esc_telemetry.temp_motor * 10 - log_message_esc.motor_temp;
+				log_message_esc_delta.mosfet_temp = esc_telemetry.temp_mos * 10 - log_message_esc.mosfet_temp;
+				log_message_esc_delta.duty_cycle = esc_telemetry.duty_now * 10 - log_message_esc.duty_cycle;
+				log_message_esc_delta.motor_current = esc_telemetry.current_motor * 10 - log_message_esc.motor_current;
+				log_message_esc_delta.battery_current = esc_telemetry.current_in * 10 - log_message_esc.battery_current;
+				log_message_esc_delta.watt_hours = esc_telemetry.watt_hours * 10 - log_message_esc.watt_hours;
+				log_message_esc_delta.watt_hours_regen = esc_telemetry.watt_hours_charged * 10 - log_message_esc.watt_hours_regen;
+				log_message_esc_delta.e_rpm = esc_telemetry.rpm - log_message_esc.e_rpm;
+				log_message_esc_delta.e_distance = esc_telemetry.tachometer_abs - log_message_esc.e_distance;
+				log_message_esc_delta.fault = esc_telemetry.fault_code;
 
-			NRF_LOG_INFO("ESC Bytes Written: %ld",bytes_written);
-			NRF_LOG_FLUSH();
+				//Update full message
+				//TODO: duplicated code
+				log_message_esc.dt = currentTime;
+				log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
+				log_message_esc.e_distance = esc_telemetry.tachometer_abs;
+				log_message_esc.e_rpm = esc_telemetry.rpm;
+				log_message_esc.esc_id = esc_telemetry.vesc_id;
+				log_message_esc.fault = esc_telemetry.fault_code;
+				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
+				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
+				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
+				log_message_esc.vin = esc_telemetry.v_in * 10;
+				log_message_esc.watt_hours = esc_telemetry.watt_hours * 10;
+				log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 10;
+
+				// Write out ESC DELTA message
+				size_t bytes_written = 0;
+				char start[3] = {PACKET_START, ESC_DELTA, sizeof(log_message_esc_delta)};
+				char end[1] = {PACKET_END};
+				bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+				bytes_written += lfs_file_write(&lfs, &file, &log_message_esc_delta, sizeof(log_message_esc_delta));
+				bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+				NRF_LOG_INFO("ESC DELTA Bytes Written: %ld", bytes_written);
+				NRF_LOG_FLUSH();
+			}
 		}
 
 		// Fault monitoring
@@ -1658,14 +1715,14 @@ static void logging_timer_handler(void *p_context) {
 			log_message_gps.latitude = hgps.latitude * 100000;
 			log_message_gps.longitude = hgps.longitude * 100000;
 
-			// Write out GPS delta message
+			// Write out GPS DELTA message
 			size_t bytes_written = 0;
 			char start[3] = {PACKET_START, GPS_DELTA, sizeof(log_message_gps_delta)};
 			char end[1] = {PACKET_END};
 			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
 			bytes_written += lfs_file_write(&lfs, &file, &log_message_gps_delta, sizeof(log_message_gps_delta));
 			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
-			NRF_LOG_INFO("GPS Bytes Written: %ld", bytes_written);
+			NRF_LOG_INFO("GPS DELTA Bytes Written: %ld", bytes_written);
 			NRF_LOG_FLUSH();
 		}
 	}
@@ -1967,6 +2024,7 @@ int log_file_stop()
 #endif
 		// Clear log messages for delta processing
 		memset(&log_message_gps,0,sizeof(log_message_gps));
+		memset(&log_message_esc,0,sizeof(log_message_esc));
 
 		int lfs_close_result = lfs_file_close(&lfs, &file);
 		NRF_LOG_INFO("log_file_stop::lfs_file_close() result: %d", lfs_close_result);

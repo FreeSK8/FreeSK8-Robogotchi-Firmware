@@ -64,19 +64,26 @@ typedef struct {
 } LOG_ESC;
 
 typedef struct {
-	uint8_t dt; // Div/10 // Up to 25.5 seconds elapsed
+	uint8_t dt; // Up to 255 seconds elapsed
+	//NOTE: 8 bit padding
 	uint16_t esc_id;
+
 	int8_t vin; // Div/10 // +-12.7 change
+	//NOTE: 8 bit padding
 	int8_t motor_temp; // Div/10 // +-12.7 change
 	int8_t mosfet_temp; // Div/10 // +-12.7 change
+
 	int16_t duty_cycle; // Div/10
 	int16_t motor_current; // Div/10
+
 	int16_t battery_current; // Div/10
-	uint8_t watt_hours; // Div/10 // Up to 25.4 increase
-	uint8_t watt_hours_regen; // Div/10 // Up to 25.4 increase
+	int8_t watt_hours; // Div/10 // +-12.7 change
+	int8_t watt_hours_regen; // Div/10 // +-12.7 change
+
 	int16_t e_rpm; // +-32767
 	int16_t e_distance; // +-32767
 	uint8_t fault;
+	//NOTE: 8 bit padding
 } LOG_ESC_DELTA;
 
 typedef struct {
