@@ -59,7 +59,7 @@ typedef struct {
 	uint8_t not_used; //NOTE: padding
 	uint32_t not_used2;  //NOTE: padding
 
-	uint32_t e_rpm;
+	int32_t e_rpm;
 	uint32_t e_distance;
 } LOG_ESC;
 
