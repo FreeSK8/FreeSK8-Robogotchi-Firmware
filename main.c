@@ -1423,7 +1423,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			write_logdata_now = false;
 
 			// If we have not yet logged a full ESC message do so now
-			if (log_message_esc.dt == 0 ||
+			if (log_message_esc.dt == 0 || currentTime % 120 == 0 ||
 				// Or we have drifted too far from the last record we must write a full ESC message
 				(
 					currentTime - log_message_esc.dt > 255 ||
@@ -1666,7 +1666,7 @@ static void logging_timer_handler(void *p_context) {
 	if (log_file_active && hgps.is_valid && hgps.fix > 0)
 	{
 		// If we have not yet logged a full GPS message do so now
-		if 	(log_message_gps.dt == 0 ||
+		if 	(log_message_gps.dt == 0 || currentTime % 120 == 0 ||
 				// Or we have drifted too far from the last record we must write a full GPS message
 				(
 					currentTime - log_message_gps.dt > 255 ||
