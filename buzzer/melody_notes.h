@@ -94,17 +94,17 @@
 
 enum {
     MELODY_TAKEONME,
-    MELODY_GIVEYOUUP,
-    MELODY_MII,
+    MELODY_ESC_FAULT,
+    MELODY_BLE_FAIL,
     MELODY_NOKIA,
-    MELODY_KBDCAT,
-    MELODY_LICK,
-    MELODY_VAMPIRE,
-    MELODY_BACH,
-    MELODY_LIONSLEEPS,
+    MELODY_BLE_SUCCESS,
+    MELODY_STORAGE_LIMIT,
+    MELODY_ESC_TEMP,
+    MELODY_MOTOR_TEMP,
+    MELODY_VOLTAGE_LOW,
     MELODY_ASC,
     MELODY_DESC,
-    MELODY_MARIO,
+    MELODY_STARTUP,
     MELODY_GPS_LOCK,
     MELODY_GPS_LOST,
 };
@@ -130,55 +130,15 @@ const int melody_takeonme[] = {
 };
 const int tempo_takeonme=140;
 
-const int melody_giveyouup[] = {
-    // Never Gonna Give You Up - Rick Astley
-    // Score available at https://musescore.com/chlorondria_5/never-gonna-give-you-up_alto-sax
-    // Arranged by Chlorondria
-    NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-
-    NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-    NOTE_E5,-8, NOTE_E5,-8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-    NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8,
-
-    NOTE_E5,4, NOTE_D5,2, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16, //40
-    NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-    NOTE_A5,4, NOTE_CS5,8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-    NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8, 
-    NOTE_E5,4, NOTE_D5,2, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-
-    NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16, //45
-    NOTE_A5,4, NOTE_CS5,8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-    NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8, 
-    NOTE_E5,4, NOTE_D5,2, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-    NOTE_FS5,-8, NOTE_FS5,-8, NOTE_E5,-4, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16, //45
-
-    NOTE_A5,4, NOTE_CS5,8, NOTE_D5,-8, NOTE_CS5,16, NOTE_B4,8, NOTE_A4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-    NOTE_D5,4, NOTE_E5,8, NOTE_CS5,-8, NOTE_B4,16, NOTE_A4,4, NOTE_A4,8,
-
-    NOTE_E5,4, NOTE_D5,2, REST,4
+const int melody_esc_fault[] = {
+   NOTE_C5,-4, NOTE_C4,-4,
 };
-const int tempo_giveyouup = 114;
+const int tempo_esc_fault = 100;
 
-const int melody_mii[] = {
-    // Mii Channel theme
-    // Score available at https://musescore.com/user/16403456/scores/4984153
-    // Uploaded by Catalina Andrade
-    NOTE_FS4,8, REST,8, NOTE_A4,8, NOTE_CS5,8, REST,8,NOTE_A4,8, REST,8, NOTE_FS4,8, //1
-    NOTE_D4,8, NOTE_D4,8, NOTE_D4,8, REST,8, REST,4, REST,8, NOTE_CS4,8,
-    NOTE_D4,8, NOTE_FS4,8, NOTE_A4,8, NOTE_CS5,8, REST,8, NOTE_A4,8, REST,8, NOTE_F4,8,
-    NOTE_E5,-4, NOTE_DS5,8, NOTE_D5,8, REST,8, REST,4,
-
-    NOTE_GS4,8, REST,8, NOTE_CS5,8, NOTE_FS4,8, REST,8,NOTE_CS5,8, REST,8, NOTE_GS4,8, //5
-    REST,8, NOTE_CS5,8, NOTE_G4,8, NOTE_FS4,8, REST,8, NOTE_E4,8, REST,8,
-    NOTE_E4,8, NOTE_E4,8, NOTE_E4,8, REST,8, REST,4, NOTE_E4,8, NOTE_E4,8,
-    NOTE_E4,8, REST,8, REST,4, NOTE_DS4,8, NOTE_D4,8,
-
-    NOTE_CS4,8, REST,8, NOTE_A4,8, NOTE_CS5,8, REST,8,NOTE_A4,8, REST,8, NOTE_FS4,8, //9
-    NOTE_D4,8, NOTE_D4,8, NOTE_D4,8, REST,8, NOTE_E5,8, NOTE_E5,8, NOTE_E5,8, REST,8,
-    REST,8, NOTE_FS4,8, NOTE_A4,8, NOTE_CS5,8, REST,8, NOTE_A4,8, REST,8, NOTE_F4,8,
-    NOTE_E5,2, NOTE_D5,8, REST,8, REST,4,
+const int melody_ble_fail[] = {
+   NOTE_C2,4, NOTE_C2,4, NOTE_B2,4
 };
-const int tempo_mii = 114;
+const int tempo_ble_fail = 360;
 
 const int melody_nokia[] = {
     // Nokia Ringtone
@@ -190,119 +150,30 @@ const int melody_nokia[] = {
 };
 const int tempo_nokia = 180;
 
-const int melody_kbdcat[] = {
-    // Keyboard cat
-    // Score available at https://musescore.com/user/142788/scores/147371
-    NOTE_C4,4, NOTE_E4,4, NOTE_G4,4, NOTE_E4,4,
-    NOTE_C4,4, NOTE_E4,8, NOTE_G4,-4, NOTE_E4,4,
+const int melody_ble_success[] = {
+    NOTE_D4,4, NOTE_D4,4, NOTE_G4,4
 };
-const int tempo_kbdcat = 160;
+const int tempo_ble_success = 360;
 
-const int melody_lick[] = {
-    // The Lick
-    NOTE_D4,8, NOTE_E4,8, NOTE_F4,8, NOTE_G4,8, NOTE_E4,4, NOTE_C4,8, NOTE_D4,1,
+const int melody_storage_limit[] = {
+    NOTE_B2,-4, NOTE_C4,4, NOTE_C4,4, NOTE_C5,5, NOTE_C5,5, NOTE_C6,4,
 };
-const int tempo_lick = 108;
+const int tempo_storage_limit = 200;
 
-const int melody_vampire[] = {
-    // Vamire Killer, from castlevania
-    // Score available at https://musescore.com/user/28972071/scores/5425616
-    // Theme starts at measure 6
-    NOTE_E5,16, NOTE_E5,8, NOTE_D5,16, REST,16, NOTE_CS5,-4, NOTE_E4,8, NOTE_FS4,16, NOTE_G4,16, NOTE_A4,16,
-
-    NOTE_B4,-8, NOTE_E4,-8, NOTE_B4,8, NOTE_A4,16, NOTE_D5,-4, //7
-    NOTE_E5,16, NOTE_E5,8, NOTE_D5,16, REST,16, NOTE_CS5,-4, NOTE_E4,8, NOTE_FS4,16, NOTE_G4,16, NOTE_A4,16,
-    NOTE_B4,-8, NOTE_E4,-8, NOTE_B4,8, NOTE_A4,16, NOTE_D4,-4,
-    REST,8, NOTE_E5,8, REST,16, NOTE_B5,16, REST,8, NOTE_AS5,16, NOTE_B5,16, NOTE_AS5,16, NOTE_G5,16, REST,4,
-
-    NOTE_B5,8, NOTE_B5,16, NOTE_AS5,16, REST,16, NOTE_AS5,16, NOTE_A5,16, REST,16, NOTE_B5,16, NOTE_G5,16, NOTE_B5,16, NOTE_AS5,16, REST,16, NOTE_B5,16, NOTE_A5,16, NOTE_G5,16,//11
-    REST,8, NOTE_E5,8, REST,16, NOTE_B5,16, REST,8, NOTE_AS5,16, NOTE_B5,16, NOTE_AS5,16, NOTE_G5,16, REST,4,
-    NOTE_B5,8, NOTE_B5,16, NOTE_AS5,16, REST,16, NOTE_AS5,16, NOTE_A5,16, REST,16, NOTE_B5,16, NOTE_G5,16, NOTE_B5,16, NOTE_AS5,16, REST,16, NOTE_B5,16, NOTE_A5,16, NOTE_G5,16,
-
-    NOTE_DS4,-8, NOTE_FS4,-8, NOTE_C5,8, NOTE_B4,-8, NOTE_G4,-8, NOTE_E4,8, //14
-    NOTE_DS4,-8, NOTE_FS4,-8, NOTE_C5,8, NOTE_B4,-8, NOTE_G4,-8, REST,8,
-    NOTE_DS4,-8, NOTE_FS4,-8, NOTE_C5,8, NOTE_B4,-8, NOTE_G4,-8, NOTE_E4,8,
-    NOTE_DS4,-8, NOTE_FS4,-8, NOTE_C5,8, NOTE_B4,-8, NOTE_CS5,-8, NOTE_DS5,8,
-
-    NOTE_E5,16, NOTE_E5,16, NOTE_E4,16, NOTE_E4,-2,//18
-    NOTE_C4,8, NOTE_C4,8, NOTE_E4,16, NOTE_G4,-8, NOTE_D4,8, NOTE_D4,8, NOTE_FS4,16, NOTE_A4,-8,
-    NOTE_E5,16, NOTE_E5,16, NOTE_E4,16, NOTE_E4,-2,
-    NOTE_C4,8, NOTE_C4,8, NOTE_E4,16, NOTE_G4,-8, NOTE_D4,8, NOTE_D4,8, NOTE_B3,16, NOTE_D4,-8,
-
-    //repeats a second time
+const int melody_esc_temp[] = {
+    NOTE_B2,-4, NOTE_C4,4, NOTE_C4,4, NOTE_C5,5,
 };
-const int tempo_vampire = 130;
+const int tempo_esc_temp = 200;
 
-const int melody_bach[] = {
-    /*
-    * C  D  E  F  G   A  B
-    * DO RE MI FA SOL LA SI */
-    // Badinerie
-    NOTE_B5,-8, NOTE_D6,16, NOTE_B5,16,
-    NOTE_FS5,-8, NOTE_B5,16, NOTE_FS5,16, NOTE_D5,-8, NOTE_FS5,16, NOTE_D5,16,
-    NOTE_B4,4,NOTE_F4,16, NOTE_B4,16, NOTE_D5,16, NOTE_B4,16,
-    NOTE_CS5,16, NOTE_B4,16, NOTE_CS5,16, NOTE_B4,16, NOTE_AS4,16, NOTE_CS5,16, NOTE_E5,16, NOTE_CS5,16,
-    NOTE_D5,8, NOTE_B4,8, NOTE_B5,-8, NOTE_D6,16, NOTE_B5,16,
-    NOTE_FS5,-8, NOTE_B5,16, NOTE_FS5,16, NOTE_D5,-8, NOTE_FS5,16, NOTE_D5,16,
-    //6
-    NOTE_B4,4, NOTE_D5,16, NOTE_CS5,-16, NOTE_D5,-8,
-    NOTE_D5,16, NOTE_CS5,-16, NOTE_D5,-8, NOTE_B5,-8, NOTE_D5,-8,
-    NOTE_D5,8, NOTE_CS5,-8, NOTE_FS5,-16, /*MI#*/ NOTE_F5,16, NOTE_FS5,-8,
-    NOTE_FS5,-16, /* MI#??*/NOTE_F5,16, NOTE_FS5,-8, NOTE_D6,-8, NOTE_FS5,-8,
-    NOTE_FS5,8, /*MI#*/ NOTE_F5,8, NOTE_CS5,16, NOTE_FS5,16, NOTE_A5,16, NOTE_FS5,16,
-    NOTE_GS5,16, NOTE_FS5,16, NOTE_GS5,16, NOTE_FS5,16, NOTE_F5,16, NOTE_G5,16, NOTE_B5,16, NOTE_G5,16,
-    //12
-    NOTE_A5,16, NOTE_GS5,16, NOTE_A5,16, NOTE_G5,16, NOTE_F5,16, NOTE_A5,16, NOTE_FS5,16, NOTE_F5,16,
-    NOTE_FS5,16, NOTE_B5,16,  NOTE_FS5,16, NOTE_F5,16, NOTE_FS5,16, NOTE_C6,16, NOTE_FS5,16, NOTE_E5,16,
-    NOTE_FS5,16, NOTE_D6,16, NOTE_FS5,16, NOTE_F5,16, NOTE_FS5,16, NOTE_D6,16, NOTE_C6,16, NOTE_B5,16,
-    NOTE_C6,16, NOTE_A5,16, NOTE_GS5,16, NOTE_FS5,16, NOTE_A5,8, NOTE_G5,8,
-    NOTE_FS5,4,
+const int melody_motor_temp[] = {
+    NOTE_B2,-4, NOTE_C4,4, NOTE_C4,4, NOTE_C5,5, NOTE_C5,5,
 };
-const int tempo_bach = 120;
+const int tempo_motor_temp = 200;
 
-const int melody_lionsleeps[] = {
-    // The Lion Sleeps Tonight
-    // Score available at https://musescore.com/user/18545446/scores/5061407
-    NOTE_F4, 4, NOTE_G4, 4, NOTE_A4, 8, NOTE_G4, 4, NOTE_A4, 8, //1
-    NOTE_AS4, 4, NOTE_A4, 4, NOTE_G4, 8, NOTE_F4, 4, NOTE_G4, 8,
-    NOTE_A4, 4, NOTE_C4, 8, NOTE_C4, 4, NOTE_C4, 8, NOTE_C4, 4,
-    NOTE_C4, 1, //1st ending
-
-    NOTE_F4, 4, NOTE_G4, 4, NOTE_A4, 8, NOTE_G4, 4, NOTE_A4, 8, //repeats from 1
-    NOTE_AS4, 4, NOTE_A4, 4, NOTE_G4, 8, NOTE_F4, 4, NOTE_G4, 8,
-    NOTE_A4, 4, NOTE_C4, 8, NOTE_C4, 4, NOTE_C4, 8, NOTE_C4, 4,
-    NOTE_C4, -2,  REST, -8, NOTE_A4, 16, //2nd ending
-
-    NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16, //6
-    NOTE_AS4, -8, NOTE_AS4, 16, NOTE_AS4, -8, NOTE_AS4, 16, NOTE_AS4, -8, NOTE_AS4, 16, NOTE_AS4, -8, NOTE_AS4, 16,
-    NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16,
-    NOTE_G4, -8, NOTE_G4, 16, NOTE_G4, -8, NOTE_G4, 16, NOTE_G4, -8, NOTE_G4, 16, NOTE_G4, -8, NOTE_G4, 16,
-
-    NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16, //10
-    NOTE_AS4, -8, NOTE_AS4, 16, NOTE_AS4, -8, NOTE_AS4, 16, NOTE_AS4, -8, NOTE_AS4, 16, NOTE_AS4, -8, NOTE_AS4, 16,
-    NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16, NOTE_A4, -8, NOTE_A4, 16,
-    NOTE_G4, -8, NOTE_G4, 16, NOTE_G4, -8, NOTE_G4, 16, NOTE_G4, -8, NOTE_G4, 16, NOTE_G4, -8, NOTE_G4, 16,
-
-    NOTE_F4, 4, NOTE_G4, 4, NOTE_A4, 8, NOTE_G4, 4, NOTE_A4, 8, //14
-    NOTE_AS4, 4, NOTE_A4, 4, NOTE_G4, 8, NOTE_F4, 4, NOTE_G4, 8,
-    NOTE_A4, 4, NOTE_G4, 4, NOTE_F4, 4, NOTE_A4, 4,
-    NOTE_G4, 1,
-    NOTE_C5, 4, NOTE_A4, 4, NOTE_G4, 8, NOTE_A4, 4, NOTE_C5, 8,
-    NOTE_AS4, 4, NOTE_A4, 4, NOTE_G4, 8, NOTE_F4, 4, NOTE_G4, 8,
-    NOTE_A4, 4, NOTE_G4, 4, NOTE_F4, 4, NOTE_A4, 4,
-    NOTE_G4, 1,
-
-    NOTE_C5, 1, //22
-    NOTE_C5, 4, NOTE_AS4, 8, NOTE_C5, 8, NOTE_AS4, 2,
-    NOTE_A4, 4, NOTE_C4, 8, NOTE_C4, 4, NOTE_C4, 8, NOTE_C4, 4,
-    NOTE_C4, 1,
-
-    REST, 4, NOTE_A4, 8, NOTE_G4, 8, NOTE_F4, 8, NOTE_E4, 8, NOTE_D4, 8, NOTE_C4, 8,
-    NOTE_D4, 1,
-    REST, 4, NOTE_A4, 8, NOTE_G4, 8, NOTE_F4, 8, NOTE_E4, 8, NOTE_D4, 8, NOTE_C4, 8,
-    NOTE_D4, 1,
+const int melody_voltage_low[] = {
+   NOTE_B2,-4, NOTE_C4,4, NOTE_C5,5,
 };
-const int tempo_lionsleeps = 122;
+const int tempo_voltage_low = 200;
 
 const int melody_ascending[] = {
     // Ascending
@@ -316,12 +187,12 @@ const int melody_descending[] = {
 };
 const int tempo_descending = 242;
 
-const int melody_mario[] = {
-    // Super!! Mario!!
-    NOTE_E5,8, NOTE_E5,8, REST,8, NOTE_E5,8, REST,8, NOTE_C5,8, NOTE_E5,8, //1
+const int melody_startup[] = {
+    // Super totally not Mario
+    NOTE_E5,8, NOTE_E5,8, REST,8, NOTE_E5,8, REST,8, NOTE_C5,8, NOTE_E5,8,
     NOTE_G5,4, REST,4, NOTE_G4,8, REST,4,
 };
-const int tempo_mario = 200;
+const int tempo_startup = 200;
 
 const int melody_gps_locked[] = {
     // GPS Signal Acquisition

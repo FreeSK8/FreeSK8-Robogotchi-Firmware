@@ -160,14 +160,14 @@ static struct esc_fault recent_faults[RECENT_FAULT_LIMIT] = {0}; // Historical a
 #include "buzzer/melody_notes.h"
 #define PIN_PIEZO 8
 
-static int melody_notes=0;
-static int melody_wholenote = 0;
-static int melody_divider = 0;
-static int melody_note_duration = 0;
-static int melody_this_note = 0;
+static volatile int melody_notes=0;
+static volatile int melody_wholenote = 0;
+static volatile int melody_divider = 0;
+static volatile int melody_note_duration = 0;
+static volatile int melody_this_note = 0;
 static volatile bool is_melody_playing = false;
 static volatile bool is_melody_playing_pause = false;
-static uint32_t melody_next_note = 0;
+static volatile uint32_t melody_next_note = 0;
 static volatile int *melody;
 
 void set_frequency_and_duty_cycle(uint32_t frequency, uint32_t duty_cycle_percent)
@@ -211,45 +211,45 @@ void melody_play(int index, bool interrupt_melody)
 			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 			melody_wholenote = (60000 * 4) / tempo_takeonme;
 		break;
-		case MELODY_GIVEYOUUP:
-			melody = (int*)&melody_giveyouup;
-			melody_notes=sizeof(melody_giveyouup)/sizeof(melody_giveyouup[0])/2;
-			melody_wholenote = (60000 * 4) / tempo_giveyouup;
+		case MELODY_ESC_FAULT:
+			melody = (int*)&melody_esc_fault;
+			melody_notes=sizeof(melody_esc_fault)/sizeof(melody_esc_fault[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_esc_fault;
 		break;
-		case MELODY_MII:
-			melody = (int*)&melody_mii;
-			melody_notes=sizeof(melody_mii)/sizeof(melody_mii[0])/2;
-			melody_wholenote = (60000 * 4) / tempo_mii;
+		case MELODY_BLE_FAIL:
+			melody = (int*)&melody_ble_fail;
+			melody_notes=sizeof(melody_ble_fail)/sizeof(melody_ble_fail[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_ble_fail;
 		break;
 		case MELODY_NOKIA:
 			melody = (int*)&melody_nokia;
 			melody_notes=sizeof(melody_nokia)/sizeof(melody_nokia[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_nokia;
 		break;
-		case MELODY_KBDCAT:
-			melody = (int*)&melody_kbdcat;
-			melody_notes=sizeof(melody_kbdcat)/sizeof(melody_kbdcat[0])/2;
-			melody_wholenote = (60000 * 4) / tempo_kbdcat;
+		case MELODY_BLE_SUCCESS:
+			melody = (int*)&melody_ble_success;
+			melody_notes=sizeof(melody_ble_success)/sizeof(melody_ble_success[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_ble_success;
 		break;
-		case MELODY_LICK:
-			melody = (int*)&melody_lick;
-			melody_notes=sizeof(melody_lick)/sizeof(melody_lick[0])/2;
-			melody_wholenote = (60000 * 4) / tempo_lick;
+		case MELODY_STORAGE_LIMIT:
+			melody = (int*)&melody_storage_limit;
+			melody_notes=sizeof(melody_storage_limit)/sizeof(melody_storage_limit[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_storage_limit;
 		break;
-		case MELODY_VAMPIRE:
-			melody = (int*)&melody_vampire;
-			melody_notes=sizeof(melody_vampire)/sizeof(melody_vampire[0])/2;
-			melody_wholenote = (60000 * 4) / tempo_vampire;
+		case MELODY_ESC_TEMP:
+			melody = (int*)&melody_esc_temp;
+			melody_notes=sizeof(melody_esc_temp)/sizeof(melody_esc_temp[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_esc_temp;
 		break;
-		case MELODY_BACH:
-			melody = (int*)&melody_bach;
-			melody_notes=sizeof(melody_bach)/sizeof(melody_bach[0])/2;
-			melody_wholenote = (60000 * 4) / tempo_bach;
+		case MELODY_MOTOR_TEMP:
+			melody = (int*)&melody_motor_temp;
+			melody_notes=sizeof(melody_motor_temp)/sizeof(melody_motor_temp[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_motor_temp;
 		break;
-		case MELODY_LIONSLEEPS:
-			melody = (int*)&melody_lionsleeps;
-			melody_notes=sizeof(melody_lionsleeps)/sizeof(melody_lionsleeps[0])/2;
-			melody_wholenote = (60000 * 4) / tempo_lionsleeps;
+		case MELODY_VOLTAGE_LOW:
+			melody = (int*)&melody_voltage_low;
+			melody_notes=sizeof(melody_voltage_low)/sizeof(melody_voltage_low[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_voltage_low;
 		break;
 		case MELODY_ASC:
 			melody = (int*)&melody_ascending;
@@ -261,10 +261,10 @@ void melody_play(int index, bool interrupt_melody)
 			melody_notes=sizeof(melody_descending)/sizeof(melody_descending[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_descending;
 		break;
-		case MELODY_MARIO:
-			melody = (int*)&melody_mario;
-			melody_notes=sizeof(melody_mario)/sizeof(melody_mario[0])/2;
-			melody_wholenote = (60000 * 4) / tempo_mario;
+		case MELODY_STARTUP:
+			melody = (int*)&melody_startup;
+			melody_notes=sizeof(melody_startup)/sizeof(melody_startup[0])/2;
+			melody_wholenote = (60000 * 4) / tempo_startup;
 		break;
 		case MELODY_GPS_LOCK:
 			melody = (int*)&melody_gps_locked;
@@ -541,7 +541,7 @@ uint8_t lfs_free_space_check(void)
 
 	if (gotchi_cfg_user.alert_storage_at_capacity != 0 && 100 - lfs_percent_free >= gotchi_cfg_user.alert_storage_at_capacity)
 	{
-		melody_play(MELODY_LICK, false); // Play storage at capacity alert, do not interrupt
+		melody_play(MELODY_STORAGE_LIMIT, false); // Play storage at capacity alert, do not interrupt
 	}
 
 	return lfs_percent_free;
@@ -587,7 +587,7 @@ uint8_t lfs_free_space_check(void)
 #define APP_ADV_DURATION				18000									   /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 
 #define MIN_CONN_INTERVAL			   MSEC_TO_UNITS(7.5, UNIT_1_25_MS)			 /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
-#define MAX_CONN_INTERVAL			   MSEC_TO_UNITS(35, UNIT_1_25_MS)			 /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
+#define MAX_CONN_INTERVAL			   MSEC_TO_UNITS(25, UNIT_1_25_MS)			 /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY				   0										   /**< Slave latency. */
 #define CONN_SUP_TIMEOUT				MSEC_TO_UNITS(4000, UNIT_10_MS)			 /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000)					   /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
@@ -597,11 +597,10 @@ uint8_t lfs_free_space_check(void)
 #define DEAD_BEEF					   0xDEADBEEF								  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
 #ifdef NRF52840_XXAA
-#define UART_TX_BUF_SIZE				4096
-#define UART_RX_BUF_SIZE				4096
+#define UART_TX_BUF_SIZE				1024
+#define UART_RX_BUF_SIZE				1024
 #else
-#define UART_TX_BUF_SIZE				2048
-#define UART_RX_BUF_SIZE				8192
+#error Gurl, whatchu doing?
 #endif
 
 #define PACKET_VESC						0
@@ -834,7 +833,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                              p_evt->conn_handle,
                              p_evt->params.conn_sec_succeeded.procedure);
 				is_connection_secure = true;
-				melody_play(MELODY_KBDCAT, true); // Play BLE Success sound
+				melody_play(MELODY_BLE_SUCCESS, true); // Play BLE Success sound
 				// Notify user connection successful
 				Adafruit_GFX_setCursor(64, 0);
 				Adafruit_GFX_print("BLE OK");
@@ -858,7 +857,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
 			Adafruit_GFX_setCursor(64, 0);
 			Adafruit_GFX_print("BLEPIN");
 			update_display = true;
-			melody_play(MELODY_MII, false); // Play BLE Failed sound. Do not interrupt (may happen repeatedly)
+			melody_play(MELODY_BLE_FAIL, false); // Play BLE Failed sound. Do not interrupt (may happen repeatedly)
             break;
 
         case PM_EVT_PEERS_DELETE_SUCCEEDED:
@@ -1528,17 +1527,17 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			}
 
 			// Alert user, don't interrupt current melody
-			melody_play(MELODY_GIVEYOUUP, false); // Play fault sound, do not interrupt
+			melody_play(MELODY_ESC_FAULT, false); // Play fault sound, do not interrupt
 		}
 
 		if (gotchi_cfg_user.alert_low_voltage != 0.0 && esc_telemetry.v_in < gotchi_cfg_user.alert_low_voltage) {
-			melody_play(MELODY_LIONSLEEPS, false); // Play fault sound, do not interrupt
+			melody_play(MELODY_VOLTAGE_LOW, false); // Play fault sound, do not interrupt
 		}
 		if (gotchi_cfg_user.alert_esc_temp != 0.0 && esc_telemetry.temp_mos > gotchi_cfg_user.alert_esc_temp) {
-			melody_play(MELODY_VAMPIRE, false); // Play fault sound, do not interrupt
+			melody_play(MELODY_ESC_TEMP, false); // Play fault sound, do not interrupt
 		}
 		if (gotchi_cfg_user.alert_motor_temp != 0.0 && esc_telemetry.temp_motor > gotchi_cfg_user.alert_motor_temp) {
-			melody_play(MELODY_BACH, false); // Play fault sound, do not interrupt
+			melody_play(MELODY_MOTOR_TEMP, false); // Play fault sound, do not interrupt
 		}
 
 		++esc_rx_cnt;
@@ -2383,7 +2382,7 @@ void play_game(){
 			d_jump_t = 1;
 			d_jump=5;
 
-			beep_speaker_blocking(40, 50);
+			beep_speaker_blocking(40, 20);
 
 		} else if (d_jump_t) {
 			++d_jump_t;
@@ -2419,7 +2418,7 @@ void play_game(){
 			if (d_tumble_t == 1) {
 				beep_speaker_blocking(40,10);
 			} else if (d_tumble_t == 6) {
-				beep_speaker_blocking(200,90);
+				beep_speaker_blocking(200,20);
 			}
 
 			++d_tumble_t;
@@ -2732,7 +2731,7 @@ int main(void) {
 
 	advertising_start(false);
 
-	melody_play(MELODY_MARIO, true); // Play a startup sound
+	melody_play(MELODY_STARTUP, true); // Play a startup sound
 
 	NRF_LOG_INFO("Robogotchi Ready!");
 	NRF_LOG_FLUSH();
