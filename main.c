@@ -160,15 +160,15 @@ static struct esc_fault recent_faults[RECENT_FAULT_LIMIT] = {0}; // Historical a
 #include "buzzer/melody_notes.h"
 #define PIN_PIEZO 8
 
-static volatile int melody_notes=0;
-static volatile int melody_wholenote = 0;
-static volatile int melody_divider = 0;
-static volatile int melody_note_duration = 0;
-static volatile int melody_this_note = 0;
-static volatile bool is_melody_playing = false;
-static volatile bool is_melody_playing_pause = false;
-static volatile uint32_t melody_next_note = 0;
-static volatile int *melody;
+int melody_notes=0;
+int melody_wholenote = 0;
+int melody_divider = 0;
+int melody_note_duration = 0;
+int melody_this_note = 0;
+bool is_melody_playing = false;
+bool is_melody_playing_pause = false;
+uint32_t melody_next_note = 0;
+int *melody;
 
 void set_frequency_and_duty_cycle(uint32_t frequency, uint32_t duty_cycle_percent)
 {
@@ -1438,17 +1438,18 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 			{
 				//TODO: duplicated code
 				log_message_esc.dt = currentTime;
-				log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
-				log_message_esc.e_distance = esc_telemetry.tachometer_abs;
-				log_message_esc.e_rpm = esc_telemetry.rpm;
 				log_message_esc.esc_id = esc_telemetry.vesc_id;
-				log_message_esc.fault = esc_telemetry.fault_code;
-				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
-				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
-				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
 				log_message_esc.vin = esc_telemetry.v_in * 10;
+				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
+				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
+				log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
+				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
+				log_message_esc.battery_current = esc_telemetry.current_in * 10;
 				log_message_esc.watt_hours = esc_telemetry.watt_hours * 100;
 				log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 100;
+				log_message_esc.e_rpm = esc_telemetry.rpm;
+				log_message_esc.e_distance = esc_telemetry.tachometer_abs;
+				log_message_esc.fault = esc_telemetry.fault_code;
 
 				// Write ESC telemetry data
 				size_t bytes_written = 0;
@@ -1481,17 +1482,18 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				//Update full message
 				//TODO: duplicated code
 				log_message_esc.dt = currentTime;
-				log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
-				log_message_esc.e_distance = esc_telemetry.tachometer_abs;
-				log_message_esc.e_rpm = esc_telemetry.rpm;
 				log_message_esc.esc_id = esc_telemetry.vesc_id;
-				log_message_esc.fault = esc_telemetry.fault_code;
-				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
-				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
-				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
 				log_message_esc.vin = esc_telemetry.v_in * 10;
+				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
+				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
+				log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
+				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
+				log_message_esc.battery_current = esc_telemetry.current_in * 10;
 				log_message_esc.watt_hours = esc_telemetry.watt_hours * 100;
 				log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 100;
+				log_message_esc.e_rpm = esc_telemetry.rpm;
+				log_message_esc.e_distance = esc_telemetry.tachometer_abs;
+				log_message_esc.fault = esc_telemetry.fault_code;
 
 				// Write out ESC DELTA message
 				size_t bytes_written = 0;
