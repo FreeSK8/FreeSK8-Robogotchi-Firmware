@@ -1430,8 +1430,8 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 					esc_telemetry.v_in * 10 - log_message_esc.vin > 127 ||
 					esc_telemetry.temp_motor * 10 - log_message_esc.motor_temp > 127 ||
 					esc_telemetry.temp_mos * 10 - log_message_esc.mosfet_temp > 127 ||
-					esc_telemetry.watt_hours * 10 - log_message_esc.watt_hours > 127 ||
-					esc_telemetry.watt_hours_charged * 10 - log_message_esc.watt_hours_regen > 127 ||
+					esc_telemetry.watt_hours * 100 - log_message_esc.watt_hours > 127 ||
+					esc_telemetry.watt_hours_charged * 100 - log_message_esc.watt_hours_regen > 127 ||
 					abs(esc_telemetry.rpm - log_message_esc.e_rpm) > 32767 ||
 					abs(esc_telemetry.tachometer_abs - log_message_esc.e_distance) > 32767
 				)
@@ -1448,8 +1448,8 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
 				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
 				log_message_esc.vin = esc_telemetry.v_in * 10;
-				log_message_esc.watt_hours = esc_telemetry.watt_hours * 10;
-				log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 10;
+				log_message_esc.watt_hours = esc_telemetry.watt_hours * 100;
+				log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 100;
 
 				// Write ESC telemetry data
 				size_t bytes_written = 0;
@@ -1473,8 +1473,8 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				log_message_esc_delta.duty_cycle = esc_telemetry.duty_now * 10 - log_message_esc.duty_cycle;
 				log_message_esc_delta.motor_current = esc_telemetry.current_motor * 10 - log_message_esc.motor_current;
 				log_message_esc_delta.battery_current = esc_telemetry.current_in * 10 - log_message_esc.battery_current;
-				log_message_esc_delta.watt_hours = esc_telemetry.watt_hours * 10 - log_message_esc.watt_hours;
-				log_message_esc_delta.watt_hours_regen = esc_telemetry.watt_hours_charged * 10 - log_message_esc.watt_hours_regen;
+				log_message_esc_delta.watt_hours = esc_telemetry.watt_hours * 100 - log_message_esc.watt_hours;
+				log_message_esc_delta.watt_hours_regen = esc_telemetry.watt_hours_charged * 100 - log_message_esc.watt_hours_regen;
 				log_message_esc_delta.e_rpm = esc_telemetry.rpm - log_message_esc.e_rpm;
 				log_message_esc_delta.e_distance = esc_telemetry.tachometer_abs - log_message_esc.e_distance;
 				log_message_esc_delta.fault = esc_telemetry.fault_code;
@@ -1491,8 +1491,8 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
 				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
 				log_message_esc.vin = esc_telemetry.v_in * 10;
-				log_message_esc.watt_hours = esc_telemetry.watt_hours * 10;
-				log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 10;
+				log_message_esc.watt_hours = esc_telemetry.watt_hours * 100;
+				log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 100;
 
 				// Write out ESC DELTA message
 				size_t bytes_written = 0;
