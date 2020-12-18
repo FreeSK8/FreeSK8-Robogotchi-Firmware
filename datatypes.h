@@ -46,12 +46,12 @@ typedef struct {
 
 	uint16_t esc_id;
 	uint16_t vin; // Div/10
-	uint16_t motor_temp; // Div/10
-	uint16_t mosfet_temp; // Div/10
+	int16_t motor_temp; // Div/10
+	int16_t mosfet_temp; // Div/10
 
-	uint16_t duty_cycle; // Div/10
-	uint16_t motor_current; // Div/10
-	uint16_t battery_current; // Div/10
+	int16_t duty_cycle; // Div/10
+	int16_t motor_current; // Div/10
+	int16_t battery_current; // Div/10
 	uint16_t watt_hours; // Div/100
 
 	uint16_t watt_hours_regen; // Div/100
