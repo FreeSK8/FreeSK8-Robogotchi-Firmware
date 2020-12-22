@@ -45,7 +45,7 @@ typedef struct {
 	time_t dt;
 
 	uint16_t esc_id;
-	uint16_t vin; // Div/10
+	uint16_t vin; // Div/100
 	int16_t motor_temp; // Div/10
 	int16_t mosfet_temp; // Div/10
 
@@ -68,7 +68,7 @@ typedef struct {
 	//NOTE: 8 bit padding
 	uint16_t esc_id;
 
-	int8_t vin; // Div/10 // +-12.7 change
+	int8_t vin; // Div/100 // +-1.27 change
 	//NOTE: 8 bit padding
 	int8_t motor_temp; // Div/10 // +-12.7 change
 	int8_t mosfet_temp; // Div/10 // +-12.7 change
