@@ -1427,8 +1427,8 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				(
 					currentTime - log_message_esc.dt > 255 ||
 					esc_telemetry.v_in * 100 - log_message_esc.vin > 127 ||
-					esc_telemetry.temp_motor * 10 - log_message_esc.motor_temp > 127 ||
-					esc_telemetry.temp_mos * 10 - log_message_esc.mosfet_temp > 127 ||
+					esc_telemetry.temp_motor * 100 - log_message_esc.motor_temp > 127 ||
+					esc_telemetry.temp_mos * 100 - log_message_esc.mosfet_temp > 127 ||
 					esc_telemetry.watt_hours * 100 - log_message_esc.watt_hours > 127 ||
 					esc_telemetry.watt_hours_charged * 100 - log_message_esc.watt_hours_regen > 127 ||
 					abs(esc_telemetry.rpm - log_message_esc.e_rpm) > 32767 ||
@@ -1440,8 +1440,8 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				log_message_esc.dt = currentTime;
 				log_message_esc.esc_id = esc_telemetry.vesc_id;
 				log_message_esc.vin = esc_telemetry.v_in * 100;
-				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
-				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
+				log_message_esc.motor_temp = esc_telemetry.temp_motor * 100;
+				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 100;
 				log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
 				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
 				log_message_esc.battery_current = esc_telemetry.current_in * 10;
@@ -1468,8 +1468,8 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				log_message_esc_delta.dt = currentTime - log_message_esc.dt;
 				log_message_esc_delta.esc_id = esc_telemetry.vesc_id;
 				log_message_esc_delta.vin = esc_telemetry.v_in * 100 - log_message_esc.vin;
-				log_message_esc_delta.motor_temp = esc_telemetry.temp_motor * 10 - log_message_esc.motor_temp;
-				log_message_esc_delta.mosfet_temp = esc_telemetry.temp_mos * 10 - log_message_esc.mosfet_temp;
+				log_message_esc_delta.motor_temp = esc_telemetry.temp_motor * 010 - log_message_esc.motor_temp;
+				log_message_esc_delta.mosfet_temp = esc_telemetry.temp_mos * 100 - log_message_esc.mosfet_temp;
 				log_message_esc_delta.duty_cycle = esc_telemetry.duty_now * 10 - log_message_esc.duty_cycle;
 				log_message_esc_delta.motor_current = esc_telemetry.current_motor * 10 - log_message_esc.motor_current;
 				log_message_esc_delta.battery_current = esc_telemetry.current_in * 10 - log_message_esc.battery_current;
@@ -1484,8 +1484,8 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				log_message_esc.dt = currentTime;
 				log_message_esc.esc_id = esc_telemetry.vesc_id;
 				log_message_esc.vin = esc_telemetry.v_in * 100;
-				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
-				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
+				log_message_esc.motor_temp = esc_telemetry.temp_motor * 100;
+				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 100;
 				log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
 				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
 				log_message_esc.battery_current = esc_telemetry.current_in * 10;
