@@ -179,16 +179,16 @@ uint32_t nrf_pwm_init(nrf_pwm_config_t *config)
 #if(USE_WITH_SOFTDEVICE == 1)
     sd_radio_session_open(nrf_radio_signal_callback);
 #else
-    NVIC_SetPriority(PWM_IRQn, 0);
+    sd_nvic_SetPriority(PWM_IRQn, 0);
     NVIC_EnableIRQ(PWM_IRQn);
 #endif
-    apply_pan73_workaround(PWM_TIMER, true);
+   // apply_pan73_workaround(PWM_TIMER, true);
     PWM_TIMER->TASKS_START = 1;
-    if(pwm_num_channels > 2)
-    {
-        apply_pan73_workaround(PWM_TIMER2, true);
-        PWM_TIMER2->TASKS_START = 1;
-    }
+    //if(pwm_num_channels > 2)
+    //{
+    //    apply_pan73_workaround(PWM_TIMER2, true);
+    //    PWM_TIMER2->TASKS_START = 1;
+    //}
     return 0;
 }
 
@@ -205,7 +205,7 @@ void nrf_pwm_set_value(uint32_t pwm_channel, uint32_t pwm_value)
     radio_request.params.earliest.timeout_us = 100000;
     sd_radio_request(&radio_request);
 #else
-    NVIC_SetPendingIRQ(PWM_IRQn);
+    sd_nvic_SetPendingIRQ(PWM_IRQn);
 #endif
 }
  
@@ -225,7 +225,7 @@ void nrf_pwm_set_values(uint32_t pwm_channel_num, uint32_t *pwm_values)
     radio_request.params.earliest.timeout_us = 100000;
     sd_radio_request(&radio_request);
 #else
-    NVIC_SetPendingIRQ(PWM_IRQn);
+    sd_nvic_SetPendingIRQ(PWM_IRQn);
 #endif
 }
 
