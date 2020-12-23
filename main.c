@@ -203,13 +203,13 @@ void melody_play(int index, bool interrupt_melody)
 	}
 	switch (index)
 	{
-		case MELODY_TAKEONME:
-			melody = (int*)&melody_takeonme;
+		case MELODY_GOTCHI_FAULT:
+			melody = (int*)&melody_gotchi_fault;
 			// sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
 			// there are two values per note (pitch and duration), so for each note there are four bytes
-			melody_notes=sizeof(melody_takeonme)/sizeof(melody_takeonme[0])/2;
+			melody_notes=sizeof(melody_gotchi_fault)/sizeof(melody_gotchi_fault[0])/2;
 			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
-			melody_wholenote = (60000 * 4) / tempo_takeonme;
+			melody_wholenote = (60000 * 4) / tempo_gotchi_fault;
 		break;
 		case MELODY_ESC_FAULT:
 			melody = (int*)&melody_esc_fault;
@@ -526,7 +526,12 @@ struct gotchi_configuration gotchi_cfg_user = {
 static volatile int lfs_percent_free = 0;
 uint8_t lfs_free_space_check(void)
 {
+	//TODO: when shit goes wrong this returns -84
+	//<info> app: FS Blocks Allocated: -84
 	int lfs_blocks_allocated = lfs_fs_size(&lfs);
+	if (lfs_blocks_allocated == LFS_ERR_CORRUPT) {
+		melody_play(MELODY_GOTCHI_FAULT, true); // Play robogotchi fault, interrupt
+	}
 	lfs_percent_free =  100 - (int)((double)lfs_blocks_allocated / (double)cfg.block_count * 100);
 	NRF_LOG_INFO("FS Blocks Allocated: %ld", lfs_blocks_allocated);
 	NRF_LOG_INFO("FS BlockCount: %d Percentage Free: %d", cfg.block_count, lfs_percent_free);
@@ -2077,6 +2082,8 @@ void log_file_start()
 	NRF_LOG_INFO("Creating log file: %s",filename);
 	NRF_LOG_FLUSH();
 
+	//TODO: when shit goes wrong this returns -84
+	//<error> app: log_file_start::lfs_file_open: Failed with result: -84
 	int file_open_result = lfs_file_opencfg(&lfs, &file, filename, LFS_O_WRONLY | LFS_O_CREAT, &lfs_file_config);
 	if (file_open_result >= 0)
 	{
