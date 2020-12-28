@@ -2035,7 +2035,7 @@ int log_file_stop()
 		int lfs_close_result = lfs_file_close(&lfs, &file);
 		NRF_LOG_INFO("log_file_stop::lfs_file_close() result: %d", lfs_close_result);
 		NRF_LOG_FLUSH();
-		melody_play(MELODY_DESC, false); // Play log stop melody, do not interrupt
+		melody_play(MELODY_DESC, true); // Play log stop melody, interrupt
 		return lfs_close_result;
 	}
 	return -1;
@@ -2156,6 +2156,7 @@ void littlefs_init()
 		Adafruit_GFX_print("*F");
 		SSD1306_display();
 #endif
+		melody_play(MELODY_GOTCHI_FAULT, true); // Play robogotchi fault, interrupt
     }
     NRF_LOG_INFO("LittleFS initialized");
     NRF_LOG_FLUSH();
@@ -2740,7 +2741,7 @@ int main(void) {
 
 	advertising_start(false);
 
-	melody_play(MELODY_STARTUP, true); // Play a startup sound
+	melody_play(MELODY_STARTUP, false); // Play a startup sound, do not interrupt
 
 	NRF_LOG_INFO("Robogotchi Ready!");
 	NRF_LOG_FLUSH();
