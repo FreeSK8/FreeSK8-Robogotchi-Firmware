@@ -49,7 +49,7 @@ typedef struct {
 	int16_t motor_temp; // Div/10
 	int16_t mosfet_temp; // Div/10
 
-	int16_t duty_cycle; // Div/10
+	int16_t duty_cycle; // Div/1000
 	int16_t motor_current; // Div/10
 	int16_t battery_current; // Div/10
 	uint16_t watt_hours; // Div/100
@@ -73,7 +73,7 @@ typedef struct {
 	int8_t motor_temp; // Div/10 // +-12.7 change
 	int8_t mosfet_temp; // Div/10 // +-12.7 change
 
-	int16_t duty_cycle; // Div/10
+	int16_t duty_cycle; // Div/1000
 	int16_t motor_current; // Div/10
 
 	int16_t battery_current; // Div/10

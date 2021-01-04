@@ -1447,7 +1447,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				log_message_esc.vin = esc_telemetry.v_in * 10;
 				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
 				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
-				log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
+				log_message_esc.duty_cycle = esc_telemetry.duty_now * 1000;
 				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
 				log_message_esc.battery_current = esc_telemetry.current_in * 10;
 				log_message_esc.watt_hours = esc_telemetry.watt_hours * 100;
@@ -1476,7 +1476,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				log_message_esc_delta.vin = (int)(esc_telemetry.v_in * 10) - (int)log_message_esc.vin;
 				log_message_esc_delta.motor_temp = (int)(esc_telemetry.temp_motor * 10) - (int)log_message_esc.motor_temp;
 				log_message_esc_delta.mosfet_temp = (int)(esc_telemetry.temp_mos * 10) - (int)log_message_esc.mosfet_temp;
-				log_message_esc_delta.duty_cycle = (int)(esc_telemetry.duty_now * 10) - log_message_esc.duty_cycle;
+				log_message_esc_delta.duty_cycle = (int)(esc_telemetry.duty_now * 1000) - log_message_esc.duty_cycle;
 				log_message_esc_delta.motor_current = (int)(esc_telemetry.current_motor * 10) - log_message_esc.motor_current;
 				log_message_esc_delta.battery_current = (int)(esc_telemetry.current_in * 10) - log_message_esc.battery_current;
 				log_message_esc_delta.watt_hours = (int)(esc_telemetry.watt_hours * 100) - log_message_esc.watt_hours;
@@ -1492,7 +1492,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				log_message_esc.vin = esc_telemetry.v_in * 10;
 				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
 				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
-				log_message_esc.duty_cycle = esc_telemetry.duty_now * 10;
+				log_message_esc.duty_cycle = esc_telemetry.duty_now * 1000;
 				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
 				log_message_esc.battery_current = esc_telemetry.current_in * 10;
 				log_message_esc.watt_hours = esc_telemetry.watt_hours * 100;
