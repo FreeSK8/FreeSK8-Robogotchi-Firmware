@@ -107,6 +107,7 @@ static volatile TELEMETRY_DATA esc_telemetry;
 static volatile int esc_rx_cnt = 0;
 static LOG_ESC log_message_esc;
 static LOG_ESC_DELTA log_message_esc_delta;
+static LOG_HEADER log_message_header;
 
 ////////////////////////////////////////
 // Display
@@ -2100,6 +2101,21 @@ void log_file_start()
 		Adafruit_GFX_print(display_text_buffer);
 		update_display = true;
 #endif
+		// Write header data
+		log_message_header.version = 1;
+		log_message_header.multi_esc_mode = gotchi_cfg_user.multi_esc_mode;
+		log_message_header.log_frequency = gotchi_cfg_user.log_interval_hz;
+
+		// Write out LOG_HEADER message
+		size_t bytes_written = 0;
+		char start[3] = {PACKET_START, HEADER, sizeof(log_message_header)};
+		char end[1] = {PACKET_END};
+		bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+		bytes_written += lfs_file_write(&lfs, &file, &log_message_header, sizeof(log_message_header));
+		bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+		NRF_LOG_INFO("LOG_HEADER Bytes Written: %ld", bytes_written);
+		NRF_LOG_FLUSH();
+
 		melody_play(MELODY_ASC, false); // Play log started melody, do not interrupt
 	} else {
 		NRF_LOG_ERROR("log_file_start::lfs_file_open: Failed with result: %d", file_open_result);

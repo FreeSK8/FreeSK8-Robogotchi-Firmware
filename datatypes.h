@@ -39,6 +39,8 @@ typedef enum {
 
 typedef struct {
 	uint16_t version; // Log file version identifies changes in struct(s)
+	uint8_t multi_esc_mode;
+	uint8_t log_frequency;
 } LOG_HEADER;
 
 typedef struct {

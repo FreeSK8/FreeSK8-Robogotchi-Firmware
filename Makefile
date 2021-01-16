@@ -392,7 +392,7 @@ sdk_config:
 	java -jar $(CMSIS_CONFIG_TOOL) $(SDK_CONFIG_FILE)
 
 upload: $(TARGET_PATH)
-	openocd -f openocd_stlink.cfg -c "program $(TARGET_PATH) verify reset exit"
+	openocd -f openocd.cfg -c "program $(TARGET_PATH) verify reset exit"
 
 upload_sd:
 	openocd -f openocd.cfg -c "program $(SD_PATH) verify reset exit"
