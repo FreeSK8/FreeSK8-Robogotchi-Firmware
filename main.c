@@ -477,7 +477,7 @@ const struct lfs_config cfg = {
 ////////////////////////////////////////
 // User configuration
 ////////////////////////////////////////
-void user_cfg_set(void);
+void user_cfg_set(bool restart_telemetry_timer);
 void user_cfg_get(void);
 #include "user_cfg.h"
 static int multiESCIndex = 0;
@@ -1825,16 +1825,6 @@ static void logging_timer_handler(void *p_context) {
 
 static void telemetry_timer_handler(void *p_context) {
 	(void)p_context;
-	// Skip processing depending on configured logging rate
-	static int skip_counter = 0;
-	if (++skip_counter < 5 /*TODO: this is robogotchi max loggin rate*/ - gotchi_cfg_user.log_interval_hz)
-	{
-		return;
-	}
-	else
-	{
-		skip_counter = 0;
-	}
 
 	// Set flag to write data when a response is received
 	write_logdata_now = true;
@@ -2178,7 +2168,7 @@ void littlefs_init()
         int lfs_format_response = lfs_format(&lfs, &cfg);
         int lfs_mount_response = lfs_mount(&lfs, &cfg);
 		NRF_LOG_WARNING("LittleFS format (%d) and mount (%d) completed", lfs_format_response, lfs_mount_response);
-		user_cfg_set();
+		user_cfg_set(false);
 #if HAS_DISPLAY
 		Adafruit_GFX_setCursor(45,0);
 		Adafruit_GFX_print("*F");
@@ -2267,7 +2257,7 @@ void littlefs_init()
 // User Configuration
 ////////////////////////////////////////
 
-void user_cfg_set(void)
+void user_cfg_set(bool restart_telemetry_timer)
 {
 	NRF_LOG_INFO("Saving User Configuration");
 	NRF_LOG_FLUSH();
@@ -2276,6 +2266,11 @@ void user_cfg_set(void)
 	lfs_file_close(&lfs, &file);
 	NRF_LOG_INFO("User Configuration Saved");
 	NRF_LOG_FLUSH();
+	if (restart_telemetry_timer)
+	{
+		app_timer_stop(m_telemetry_timer);
+		app_timer_start(m_telemetry_timer, APP_TIMER_TICKS(1000 / gotchi_cfg_user.log_interval_hz), NULL);
+	}
 }
 
 void user_cfg_get(void)
@@ -2299,7 +2294,7 @@ void user_cfg_get(void)
 		NRF_LOG_WARNING("User Configuration Version Mismatch. Restoring Defaults");
 		NRF_LOG_FLUSH();
 		gotchi_cfg_user = gotchi_cfg_default;
-		user_cfg_set();
+		user_cfg_set(false);
 	}
 }
 
@@ -2761,7 +2756,7 @@ int main(void) {
 	app_timer_start(m_logging_timer, APP_TIMER_TICKS(1000), NULL);
 
 	app_timer_create(&m_telemetry_timer, APP_TIMER_MODE_REPEATED, telemetry_timer_handler);
-	app_timer_start(m_telemetry_timer, APP_TIMER_TICKS(1000 / 5 /*TODO: this is robogotchi max rate*/), NULL);
+	app_timer_start(m_telemetry_timer, APP_TIMER_TICKS(1000 / gotchi_cfg_user.log_interval_hz), NULL);
 
 #ifdef ENABLE_USBD
 	app_usbd_power_events_enable();

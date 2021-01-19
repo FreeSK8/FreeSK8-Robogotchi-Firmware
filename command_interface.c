@@ -18,7 +18,7 @@ extern void update_status_packet(char * buffer);
 extern uint16_t create_fault_packet(char * buffer);
 extern uint16_t m_ble_fus_max_data_len;
 
-extern void user_cfg_set(void);
+extern void user_cfg_set(bool restart_telemetry_timer);
 extern struct gotchi_configuration gotchi_cfg_user;
 
 static lfs_file_t file;
@@ -333,9 +333,10 @@ void command_interface_process_byte(char incoming)
 #endif
             if(gotchi_cfg.cfg_version == gotchi_cfg_user.cfg_version)
             {
+                bool restart_telemetry_timer = gotchi_cfg.log_interval_hz != gotchi_cfg_user.log_interval_hz;
                 log_file_stop(); // Stop logging before changing settings
                 gotchi_cfg_user = gotchi_cfg;
-                user_cfg_set();
+                user_cfg_set(restart_telemetry_timer);
                 sprintf((char *)command_response_buffer, "setcfg,OK");
             }
             else
