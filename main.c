@@ -404,7 +404,7 @@ void beep_speaker_blocking(int duration_ms, int duty_haha_duty)
 ////////////////////////////////////////
 //LITTLEFS
 ////////////////////////////////////////
-bool sync_in_progress = false;
+volatile bool sync_in_progress = false;
 time_t lastTimeBoardMoved = 0;
 int log_file_stop();
 void log_file_start();
