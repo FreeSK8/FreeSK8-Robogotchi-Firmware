@@ -1825,6 +1825,17 @@ static void logging_timer_handler(void *p_context) {
 
 static void telemetry_timer_handler(void *p_context) {
 	(void)p_context;
+	// Skip processing depending on configured logging rate
+	static int skip_counter = 0;
+	if (++skip_counter < 5 /*TODO: this is robogotchi max loggin rate*/ - gotchi_cfg_user.log_interval_hz)
+	{
+		return;
+	}
+	else
+	{
+		skip_counter = 0;
+	}
+
 	// Set flag to write data when a response is received
 	write_logdata_now = true;
 
@@ -2750,7 +2761,7 @@ int main(void) {
 	app_timer_start(m_logging_timer, APP_TIMER_TICKS(1000), NULL);
 
 	app_timer_create(&m_telemetry_timer, APP_TIMER_MODE_REPEATED, telemetry_timer_handler);
-	app_timer_start(m_telemetry_timer, APP_TIMER_TICKS(1000 / gotchi_cfg_user.log_interval_hz), NULL);
+	app_timer_start(m_telemetry_timer, APP_TIMER_TICKS(1000 / 5 /*TODO: this is robogotchi max rate*/), NULL);
 
 #ifdef ENABLE_USBD
 	app_usbd_power_events_enable();
