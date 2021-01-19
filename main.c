@@ -55,7 +55,7 @@
 
 #define BIT(x) 1<<x
 
-#ifdef NRF52840_XXAA
+#ifdef ENABLE_USBD
 #include "app_usbd_core.h"
 #include "app_usbd.h"
 #include "app_usbd_string_desc.h"
@@ -677,7 +677,7 @@ gps_uart_comm_params_t m_gpsuart_comm_params =
 // Functions
 void ble_printf(const char* format, ...);
 
-#ifdef NRF52840_XXAA
+#ifdef ENABLE_USBD
 static void cdc_acm_user_ev_handler(app_usbd_class_inst_t const * p_inst,
 		app_usbd_cdc_acm_user_event_t event);
 
@@ -1625,7 +1625,7 @@ void ble_printf(const char* format, ...) {
 }
 
 void cdc_printf(const char* format, ...) {
-#ifdef NRF52840_XXAA
+#ifdef ENABLE_USBD
 	va_list arg;
 	va_start (arg, format);
 	int len;
@@ -2628,7 +2628,7 @@ int main(void) {
 	// Turn on LED during boot
 	nrf_gpio_pin_set(LED_PIN);
 
-#ifdef NRF52840_XXAA
+#ifdef ENABLE_USBD
 	nrf_drv_clock_init();
 
 	static const app_usbd_config_t usbd_config = {
@@ -2752,7 +2752,7 @@ int main(void) {
 	app_timer_create(&m_telemetry_timer, APP_TIMER_MODE_REPEATED, telemetry_timer_handler);
 	app_timer_start(m_telemetry_timer, APP_TIMER_TICKS(1000 / gotchi_cfg_user.log_interval_hz), NULL);
 
-#ifdef NRF52840_XXAA
+#ifdef ENABLE_USBD
 	app_usbd_power_events_enable();
 #endif
 
@@ -2764,7 +2764,7 @@ int main(void) {
 	NRF_LOG_FLUSH();
 
 	for (;;) {
-#ifdef NRF52840_XXAA
+#ifdef ENABLE_USBD
 		while (app_usbd_event_queue_process()){}
 #endif
 
