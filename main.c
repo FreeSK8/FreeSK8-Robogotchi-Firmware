@@ -103,7 +103,7 @@ static LOG_GPS_DELTA log_message_gps_delta;
 ////////////////////////////////////////
 // ESC data
 ////////////////////////////////////////
-static volatile TELEMETRY_DATA esc_telemetry;
+static TELEMETRY_DATA esc_telemetry;
 static volatile int esc_rx_cnt = 0;
 static LOG_ESC log_message_esc;
 static LOG_ESC_DELTA log_message_esc_delta;
@@ -332,7 +332,7 @@ void melody_step(void)
 			else
 			{
 				// we only play the note for 90% of the duration, leaving 10% as a pause
-				set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 50);
+				set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 45);
 				melody_next_note = now + (melody_note_duration * 0.9);
 				is_melody_playing_pause = true; // Set to true so we pause on the next step
 			}
@@ -357,38 +357,6 @@ void buzzer_init(void)
 		.mode           = PWM_MODE_BUZZER_255};
 
     nrf_pwm_init(&pwm_config);
-
-	while(false)
-	{
-		// iterate over the notes of the melody. 
-		// Remember, the array is twice the number of notes (notes + durations)
-		for (melody_this_note = 0; melody_this_note < melody_notes * 2; melody_this_note = melody_this_note + 2) {
-
-			// calculates the duration of each note
-			melody_divider = melody[melody_this_note + 1];
-			if (melody_divider > 0) {
-			// regular note, just proceed
-			melody_note_duration = (melody_wholenote) / melody_divider;
-			} else if (melody_divider < 0) {
-			// dotted notes are represented with negative durations!!
-			melody_note_duration = (melody_wholenote) / abs(melody_divider);
-			melody_note_duration *= 1.5; // increases the duration in half for dotted notes
-			}
-
-			// we only play the note for 90% of the duration, leaving 10% as a pause
-			set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 50); //tone(buzzer, melody[melody_this_note], noteDuration*0.9);
-
-			// Wait for the specief duration before playing the next note.
-			nrf_delay_ms(melody_note_duration*0.9); //delay(noteDuration);
-
-			// stop the waveform generation before the next note.
-			set_frequency_and_duty_cycle((uint32_t)(melody[melody_this_note]), 0);//noTone(buzzer);
-			nrf_delay_ms(melody_note_duration*0.1); //delay(noteDuration);
-
-			nrf_gpio_pin_toggle(13); //LED
-		}
-	}
-
 }
 
 //TODO: replace uses of beep_speaker_blocking
@@ -1391,6 +1359,23 @@ static void update_fault(uint8_t p_fault_code, int p_esc_id)
 	}
 }
 
+static void update_log_message_esc(TELEMETRY_DATA * esc_telemetry, LOG_ESC * log_message_esc)
+{
+	log_message_esc->dt = currentTime;
+	log_message_esc->esc_id = esc_telemetry->vesc_id;
+	log_message_esc->vin = esc_telemetry->v_in * 10;
+	log_message_esc->motor_temp = esc_telemetry->temp_motor * 10;
+	log_message_esc->mosfet_temp = esc_telemetry->temp_mos * 10;
+	log_message_esc->duty_cycle = esc_telemetry->duty_now * 1000;
+	log_message_esc->motor_current = esc_telemetry->current_motor * 10;
+	log_message_esc->battery_current = esc_telemetry->current_in * 10;
+	log_message_esc->watt_hours = esc_telemetry->watt_hours * 100;
+	log_message_esc->watt_hours_regen = esc_telemetry->watt_hours_charged * 100;
+	log_message_esc->e_rpm = esc_telemetry->rpm;
+	log_message_esc->e_distance = esc_telemetry->tachometer_abs;
+	log_message_esc->fault = esc_telemetry->fault_code;
+}
+
 #define FW5_PACKET_LENGTH 73
 static void process_packet_vesc(unsigned char *data, unsigned int len) {
 	// Additionally comparing with FW5_PACKET_LENGTH to safeguard against non-esc communication
@@ -1442,20 +1427,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				)
 			)
 			{
-				//TODO: duplicated code
-				log_message_esc.dt = currentTime;
-				log_message_esc.esc_id = esc_telemetry.vesc_id;
-				log_message_esc.vin = esc_telemetry.v_in * 10;
-				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
-				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
-				log_message_esc.duty_cycle = esc_telemetry.duty_now * 1000;
-				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
-				log_message_esc.battery_current = esc_telemetry.current_in * 10;
-				log_message_esc.watt_hours = esc_telemetry.watt_hours * 100;
-				log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 100;
-				log_message_esc.e_rpm = esc_telemetry.rpm;
-				log_message_esc.e_distance = esc_telemetry.tachometer_abs;
-				log_message_esc.fault = esc_telemetry.fault_code;
+				update_log_message_esc(&esc_telemetry, &log_message_esc);
 
 				// Write ESC telemetry data
 				size_t bytes_written = 0;
@@ -1474,10 +1446,12 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				log_message_esc_delta.dt = currentTime - log_message_esc.dt;
 				log_message_esc_delta.esc_id = esc_telemetry.vesc_id;
 				//TODO: understand why many of these casts are absolutely necessary
-				log_message_esc_delta.vin = (int)(esc_telemetry.v_in * 10) - (int)log_message_esc.vin;
-				log_message_esc_delta.motor_temp = (int)(esc_telemetry.temp_motor * 10) - (int)log_message_esc.motor_temp;
-				log_message_esc_delta.mosfet_temp = (int)(esc_telemetry.temp_mos * 10) - (int)log_message_esc.mosfet_temp;
-				log_message_esc_delta.duty_cycle = (int)(esc_telemetry.duty_now * 1000) - log_message_esc.duty_cycle;
+				log_message_esc_delta.vin = (int8_t)((int)(esc_telemetry.v_in * 10) - (int)log_message_esc.vin);
+				log_message_esc_delta.motor_temp = (int8_t)((int)(esc_telemetry.temp_motor * 10) - (int)log_message_esc.motor_temp);
+				log_message_esc_delta.mosfet_temp = (int8_t)((int)(esc_telemetry.temp_mos * 10) - (int)log_message_esc.mosfet_temp);
+				//NRF_LOG_INFO("ESC Delta %d Now %d Previous %d", log_message_esc_delta.mosfet_temp, esc_telemetry.temp_mos * 10, log_message_esc.mosfet_temp);
+				//NRF_LOG_FLUSH();
+				log_message_esc_delta.duty_cycle = (int16_t)(esc_telemetry.duty_now * 1000) - log_message_esc.duty_cycle;
 				log_message_esc_delta.motor_current = (int)(esc_telemetry.current_motor * 10) - log_message_esc.motor_current;
 				log_message_esc_delta.battery_current = (int)(esc_telemetry.current_in * 10) - log_message_esc.battery_current;
 				log_message_esc_delta.watt_hours = (int)(esc_telemetry.watt_hours * 100) - log_message_esc.watt_hours;
@@ -1487,20 +1461,7 @@ static void process_packet_vesc(unsigned char *data, unsigned int len) {
 				log_message_esc_delta.fault = esc_telemetry.fault_code;
 
 				//Update full message
-				//TODO: duplicated code
-				log_message_esc.dt = currentTime;
-				log_message_esc.esc_id = esc_telemetry.vesc_id;
-				log_message_esc.vin = esc_telemetry.v_in * 10;
-				log_message_esc.motor_temp = esc_telemetry.temp_motor * 10;
-				log_message_esc.mosfet_temp = esc_telemetry.temp_mos * 10;
-				log_message_esc.duty_cycle = esc_telemetry.duty_now * 1000;
-				log_message_esc.motor_current = esc_telemetry.current_motor * 10;
-				log_message_esc.battery_current = esc_telemetry.current_in * 10;
-				log_message_esc.watt_hours = esc_telemetry.watt_hours * 100;
-				log_message_esc.watt_hours_regen = esc_telemetry.watt_hours_charged * 100;
-				log_message_esc.e_rpm = esc_telemetry.rpm;
-				log_message_esc.e_distance = esc_telemetry.tachometer_abs;
-				log_message_esc.fault = esc_telemetry.fault_code;
+				update_log_message_esc(&esc_telemetry, &log_message_esc);
 
 				// Write out ESC DELTA message
 				size_t bytes_written = 0;
