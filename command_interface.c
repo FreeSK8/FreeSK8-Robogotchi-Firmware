@@ -54,6 +54,8 @@ extern struct tm * tmTime;
 extern struct lfs_config cfg;
 extern volatile bool update_rtc;
 
+extern volatile bool log_file_active;
+
 void command_interface_process_byte(char incoming)
 {
     command_input_buffer[ command_input_index++ ] = incoming;
@@ -113,24 +115,33 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "settime ", 8) == 0)
         {
-            char* timepointer = command_input_buffer + 8;
-            int syear, smonth, sday, shour, sminute, ssecond;
-            sscanf( timepointer, "%d:%d:%dT%d:%d:%d", &syear, &smonth, &sday, &shour, &sminute, &ssecond );
+            //TODO: guarding settime by log_file_active to prevent time traveling. Needs better solution
+            if (!log_file_active)
+            {
+                char* timepointer = command_input_buffer + 8;
+                int syear, smonth, sday, shour, sminute, ssecond;
+                sscanf( timepointer, "%d:%d:%dT%d:%d:%d", &syear, &smonth, &sday, &shour, &sminute, &ssecond );
 
-            NRF_LOG_INFO("command_interface: settime command received: %s", command_input_buffer + 8);
-            NRF_LOG_FLUSH();
+                NRF_LOG_INFO("command_interface: settime command received: %s", command_input_buffer + 8);
+                NRF_LOG_FLUSH();
 
-            // Update time in memory
-            tmTime->tm_year = syear - 1900;
-            tmTime->tm_mon = smonth - 1;
-            tmTime->tm_mday = sday;
-            tmTime->tm_hour = shour;
-            tmTime->tm_min = sminute;
-            tmTime->tm_sec = ssecond;
-            currentTime = mktime(tmTime);
+                // Update time in memory
+                tmTime->tm_year = syear - 1900;
+                tmTime->tm_mon = smonth - 1;
+                tmTime->tm_mday = sday;
+                tmTime->tm_hour = shour;
+                tmTime->tm_min = sminute;
+                tmTime->tm_sec = ssecond;
+                currentTime = mktime(tmTime);
 
-            // Update time on RTC
-            update_rtc = true;
+                // Update time on RTC
+                update_rtc = true;
+            }
+            else
+            {
+                NRF_LOG_WARNING("command_interface: set time command ignored while logging");
+                NRF_LOG_FLUSH();
+            }
         }
         else if(strncmp(command_input_buffer, "ls", 2) == 0)
         {
