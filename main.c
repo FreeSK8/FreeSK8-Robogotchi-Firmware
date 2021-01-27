@@ -133,7 +133,7 @@ volatile bool rtc_time_has_sync = false; // Set to true when the RTC has been se
 struct tm * tmTime;
 time_t currentTime;
 static char datetimestring[ 64 ] = { 0 };
-static volatile bool log_file_active = false;
+volatile bool log_file_active = false;
 static volatile bool write_logdata_now = false;
 static volatile bool gps_signal_locked = false;
 static time_t time_esc_last_responded; // For triggering TX and RX pin swapping
@@ -1359,7 +1359,7 @@ static void update_fault(uint8_t p_fault_code, int p_esc_id)
 	}
 }
 
-static void update_log_message_esc(TELEMETRY_DATA * esc_telemetry, LOG_ESC * log_message_esc)
+void update_log_message_esc(TELEMETRY_DATA * esc_telemetry, LOG_ESC * log_message_esc)
 {
 	log_message_esc->dt = currentTime;
 	log_message_esc->esc_id = esc_telemetry->vesc_id;
@@ -1377,7 +1377,7 @@ static void update_log_message_esc(TELEMETRY_DATA * esc_telemetry, LOG_ESC * log
 }
 
 #define FW5_PACKET_LENGTH 73
-static void process_packet_vesc(unsigned char *data, unsigned int len) {
+void process_packet_vesc(unsigned char *data, unsigned int len) {
 	// Additionally comparing with FW5_PACKET_LENGTH to safeguard against non-esc communication
 	if (data[0] == COMM_GET_VALUES && len == FW5_PACKET_LENGTH){
 		int32_t index = 1;
