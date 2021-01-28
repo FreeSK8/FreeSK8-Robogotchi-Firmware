@@ -286,6 +286,7 @@ void melody_play(int index, bool interrupt_melody)
 	melody_note_duration = 0;
 	melody_this_note = 0; // Play from the beginning
 	is_melody_playing = true;
+	is_melody_playing_pause = false;
 	melody_next_note = millis();
 	nrf_pwm_set_enabled(true);
 }
