@@ -835,6 +835,13 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
 			melody_play(MELODY_BLE_FAIL, false); // Play BLE Failed sound. Do not interrupt (may happen repeatedly)
             break;
 
+        case PM_EVT_CONN_SEC_CONFIG_REQ:
+        {
+            // Allow pairing request from an already bonded peer.
+            pm_conn_sec_config_t conn_sec_config = {.allow_repairing = true};
+            pm_conn_sec_config_reply(p_evt->conn_handle, &conn_sec_config);
+        } break;
+
         case PM_EVT_PEERS_DELETE_SUCCEEDED:
             advertising_start(false);
             break;
