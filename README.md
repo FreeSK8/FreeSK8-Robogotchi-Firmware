@@ -1,42 +1,14 @@
-# nrf52_vesc
+# FreeSK8-Robogotchi-Hardware
+ 
+![FreeSK8 Robogotchi](https://github.com/FreeSK8/FreeSK8-Robogotchi-Hardware/blob/main/Docs/FreeSK8-Robogotchi-Logo.png)
 
-This is code for the NRF52832 and the NRF52840 for communicating between the VESC and VESC Tool (linux and mobile) over BLE. After uploading the firmware, the NRF can be connected to the VESC using the RX and TX pins chosen in main.c, and the BLE scanner in VESC Tool should be able to find it and connect. Note that the UART port on the VESC must be enabled with a baud rate of 115200 for this to work. The NRF can also communicate with the VESC Remote at the same time as it runs BLE.  
+The [FreeSK8 Robogotchi](https://derelictrobot.com/collections/production/products/freesk8-robogotchi) is an advanced BLE Receiver, Datalogger, and core component of the FreeSK8 System.
 
-The code can be build with the NRF52 SDK by changing the path in Makefile. There is a variable in the makefile called IS_52832. If it is set to 1, the code is built for the NRF52832, otherwise it is built for the NRF52840. The difference between the two is which files are included from the NRF SDK and whether USB-CDC support is used in main.c. For now USB-CDC is only useful for printing debug information, but later it might be possible to connect VESC Tool over it.
+Think of it like a blackbox flight recorder for your esk8 or LEV. 
 
-This is how to connect an STLINK V2 to the NRF52 for uploading the code:
+The Robogotchi brings Always-On Logging as a core feature with an asynchronous logging integration with our FreeSK8 Mobile App. 
 
-| NRF52         | STLINK V2     |
-| ------------- |---------------|
-| GND           | GND           |
-| VDD           | 3.3V          |
-| SDO           | SWDIO         |
-| SCL           | SWCLK         |
+Ride now, Sync later.
 
-The first time the code is uploaded mass_erase must be run, and the softdevice must be uploaded. This can be done with the following make rules:
-
-```bash
-make mass_erase
-```
-
-```bash
-make upload_sd
-```
-
-after that and after future changes only the code itself needs to be uploaded:
-
-```bash
-make upload
-```
-
-After the code is uploaded, the NRF52 can be connected to the VESC in the following way:
-
-| NRF52         | VESC          |
-| ------------- |---------------|
-| GND           | GND           |
-| VDD           | VCC (3.3V)    |
-| Px.y (TX)     | RX            |
-| Px2.y2 (RX)   | TX            |
-
-Note that a 10 uF ceremaic capacitor between VCC and GND close to the NRF52 module might be needed if the cables are long. Otherwise the connection can become slow and unstable.
+![Robogotchi v1.2](https://github.com/FreeSK8/FreeSK8-Robogotchi-Hardware/blob/main/Docs/Robogotchi-v1.2b.PNG)
 
