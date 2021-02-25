@@ -149,6 +149,7 @@ SRC_FILES += \
   $(SDK_ROOT)/components/libraries/fstorage/nrf_fstorage.c \
   $(SDK_ROOT)/components/libraries/fstorage/nrf_fstorage_sd.c \
   buzzer/nrf_pwm.c \
+  minigame.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \
@@ -327,6 +328,8 @@ CFLAGS += -DCONFIG_NFCT_PINS_AS_GPIOS
 CFLAGS += -DAPP_TIMER_V2 -DAPP_TIMER_V2_RTC1_ENABLED
 # Use only static filesystem buffers
 CFLAGS += -DLFS_NO_MALLOC
+# Switch if hardware has display
+CFLAGS += -DHAS_DISPLAY=1
 
 # C++ flags common to all targets
 CXXFLAGS += $(OPT)

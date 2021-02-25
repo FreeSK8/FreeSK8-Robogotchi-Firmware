@@ -6,6 +6,22 @@
 #include "nrf_sdm.h"
 #endif
 
+#include "nrf_delay.h"
+void set_frequency_and_duty_cycle(uint32_t frequency, uint32_t duty_cycle_percent)
+{
+    nrf_pwm_set_max_value((16000000 + (frequency / 2)) / frequency);
+    nrf_pwm_set_value(0, (16000000 / frequency) * duty_cycle_percent / 100);
+}
+
+void beep_speaker_blocking(int duration_ms, int duty_haha_doodie)
+{
+	nrf_pwm_set_enabled(true);
+	set_frequency_and_duty_cycle((uint32_t)2000, duty_haha_doodie);
+	nrf_delay_ms(duration_ms);
+	set_frequency_and_duty_cycle((uint32_t)2000, 0);
+	nrf_pwm_set_enabled(false);
+}
+
 static uint32_t pwm_max_value, pwm_next_value[PWM_MAX_CHANNELS], pwm_next_max_value, pwm_io_ch[PWM_MAX_CHANNELS], pwm_running[PWM_MAX_CHANNELS];
 static bool pwm_modified[PWM_MAX_CHANNELS];
 static uint8_t pwm_gpiote_channel[PWM_MAX_CHANNELS];

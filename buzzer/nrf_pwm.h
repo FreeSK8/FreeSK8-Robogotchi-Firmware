@@ -56,4 +56,8 @@ void nrf_pwm_set_max_value(uint32_t max_value);
 
 void nrf_pwm_set_enabled(bool enabled);
 
+void set_frequency_and_duty_cycle(uint32_t frequency, uint32_t duty_cycle_percent);
+
+void beep_speaker_blocking(int duration_ms, int duty_haha_duty);
+
 #endif
