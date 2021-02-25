@@ -1394,6 +1394,7 @@ void update_log_message_esc(TELEMETRY_DATA * esc_telemetry, LOG_ESC * log_messag
 #define FW5_PACKET_LENGTH 73
 void process_packet_vesc(unsigned char *data, unsigned int len) {
 	// Additionally comparing with FW5_PACKET_LENGTH to safeguard against non-esc communication
+	// IE. Smart BMS that use COMM_GET_VALUES to relay BMS data instead of ESC
 	if (data[0] == COMM_GET_VALUES && len == FW5_PACKET_LENGTH){
 		int32_t index = 1;
 		esc_telemetry.temp_mos = buffer_get_float16(data,10.0,&index);
@@ -2540,62 +2541,6 @@ void play_game(){
 //You didn't listen when I said don't ask, did you?
 #endif
 
-
-#define SPI_INSTANCE  2 /**< SPI instance index. */
-static const nrf_drv_spi_t spi = NRF_DRV_SPI_INSTANCE(SPI_INSTANCE);  /**< SPI instance. */
-static volatile bool spi_xfer_done;  /**< Flag used to indicate that SPI instance completed the transfer. */
-
-#define TEST_STRING "Nordic"
-static uint8_t       m_tx_buf[] = TEST_STRING;           /**< TX buffer. */
-static uint8_t       m_rx_buf[sizeof(TEST_STRING) + 1];    /**< RX buffer. */
-static const uint8_t m_length = sizeof(m_tx_buf);        /**< Transfer length. */
-
-/**
- * @brief SPI user event handler.
- * @param event
- */
-void spi_event_handler(nrf_drv_spi_evt_t const * p_event,
-                       void *                    p_context)
-{
-    spi_xfer_done = true;
-    NRF_LOG_INFO("Transfer completed.");
-    if (m_rx_buf[0] != 0)
-    {
-        NRF_LOG_INFO(" Received:");
-        NRF_LOG_HEXDUMP_INFO(m_rx_buf, strlen((const char *)m_rx_buf));
-    }
-}
-
-//TODO: remove SPI if not in use
-void spi_init(void)
-{
-	nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
-    spi_config.ss_pin   = 31;
-    spi_config.miso_pin = 30;
-    spi_config.mosi_pin = 29;
-    spi_config.sck_pin  = 28;
-    APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, spi_event_handler, NULL));
-
-    NRF_LOG_INFO("SPI example started.");
-	while (0)
-    {
-        // Reset rx buffer and transfer done flag
-        memset(m_rx_buf, 0, m_length);
-        spi_xfer_done = false;
-
-        APP_ERROR_CHECK(nrf_drv_spi_transfer(&spi, m_tx_buf, m_length, m_rx_buf, m_length));
-
-        while (!spi_xfer_done)
-        {
-            __WFE();
-        }
-
-        NRF_LOG_FLUSH();
-
-        bsp_board_led_invert(BSP_BOARD_LED_0);
-        nrf_delay_ms(200);
-    }
-}
 
 char ble_pin[7] = {0};
 uint16_t duration_button_pressed = 0;
