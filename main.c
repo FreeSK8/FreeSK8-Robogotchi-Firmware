@@ -1777,7 +1777,7 @@ static void logging_timer_handler(void *p_context) {
 		if (log_file_active)
 		{
 			log_message_freesk8.event_type = TIME_SYNC;
-			log_message_freesk8.event_data = currentTime - newTimeSeconds;
+			log_message_freesk8.event_data = newTimeSeconds - currentTime;
 
 			// Write out FREESK8 TIME_SYNC event
 			size_t bytes_written = 0;
@@ -1790,12 +1790,18 @@ static void logging_timer_handler(void *p_context) {
 			NRF_LOG_FLUSH();
 		}
 
-		// Update time
+		// Update time in memory
 		memcpy(tmTime, &gpsTime, sizeof(struct tm));
 		currentTime = newTimeSeconds;
 
 		// Update time on RTC
 		update_rtc = true;
+
+		// Update internal state
+		time_esc_last_responded = currentTime;
+		time_gps_last_responded = currentTime;
+		lastTimeBoardMoved = currentTime;
+		strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
 
 		NRF_LOG_INFO("Time set from GPS %ld", currentTime);
 		NRF_LOG_FLUSH();
