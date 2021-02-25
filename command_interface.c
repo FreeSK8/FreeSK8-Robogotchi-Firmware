@@ -246,12 +246,13 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.7.3,beta");
+            sprintf((char *)command_response_buffer, "version,0.8.0,beta");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
         {
-            sprintf((char *)command_response_buffer, "getcfg,%d,%0.2f,%d,%d,%d,%d,%d,%d,%d,%d,%ld,%0.1f,%0.1f,%0.1f,%d,%ld",
+            sprintf((char *)command_response_buffer, "getcfg,%ld,%d,%0.2f,%d,%d,%d,%d,%d,%d,%d,%d,%ld,%0.1f,%0.1f,%0.1f,%d,%d,%d",
+                gotchi_cfg_user.cfg_version,
                 gotchi_cfg_user.log_auto_stop_idle_time,
                 gotchi_cfg_user.log_auto_stop_low_voltage,
                 gotchi_cfg_user.log_auto_start_erpm,
@@ -267,7 +268,8 @@ void command_interface_process_byte(char incoming)
                 gotchi_cfg_user.alert_esc_temp,
                 gotchi_cfg_user.alert_motor_temp,
                 gotchi_cfg_user.alert_storage_at_capacity,
-                gotchi_cfg_user.cfg_version
+                gotchi_cfg_user.timezone_hour_offset,
+                gotchi_cfg_user.timezone_minute_offset
             );
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
@@ -289,12 +291,16 @@ void command_interface_process_byte(char incoming)
             gotchi_cfg.alert_esc_temp = 0.0;
             gotchi_cfg.alert_motor_temp = 0.0;
             gotchi_cfg.alert_storage_at_capacity = 0;
+            gotchi_cfg.timezone_hour_offset = 0;
+            gotchi_cfg.timezone_minute_offset = 0;
             gotchi_cfg.cfg_version = 0;
             char * usr_cfg = command_input_buffer + 7;
             NRF_LOG_INFO("setcfg command received: %s", usr_cfg);
             NRF_LOG_FLUSH();
             
             char *field = strtok(usr_cfg, ","); NRF_LOG_INFO("field: %s", field); NRF_LOG_FLUSH();
+            gotchi_cfg.cfg_version = atoi(field);
+            field = strtok(NULL, ",");
             gotchi_cfg.log_auto_stop_idle_time = atoi(field);
             field = strtok(NULL, ",");
             gotchi_cfg.log_auto_stop_low_voltage = atof(field);
@@ -325,23 +331,11 @@ void command_interface_process_byte(char incoming)
             field = strtok(NULL, ",");
             gotchi_cfg.alert_storage_at_capacity = atoi(field);
             field = strtok(NULL, ",");
-            gotchi_cfg.cfg_version = atoi(field);
-#ifdef P00PIES
-            static char testpoo[128] = {0};
-            sprintf(testpoo,"%d,%0.2f,%0.2f,%d,%d,%d,%d,%d,%d,%ld,%ld",
-                gotchi_cfg.log_auto_stop_idle_time,
-                gotchi_cfg.log_auto_stop_low_voltage,
-                gotchi_cfg.log_auto_start_duty_cycle,
-                gotchi_cfg.log_interval_hz,
-                gotchi_cfg.multi_esc_mode,
-                gotchi_cfg.multi_esc_ids[0],
-                gotchi_cfg.multi_esc_ids[1],
-                gotchi_cfg.multi_esc_ids[2],
-                gotchi_cfg.multi_esc_ids[3],
-                gotchi_cfg.gps_baud_rate,
-                gotchi_cfg.cfg_version);
-            NRF_LOG_INFO("Parsed Config >%s<", testpoo);
-#endif
+            gotchi_cfg.timezone_hour_offset = atoi(field);
+            field = strtok(NULL, ",");
+            gotchi_cfg.timezone_minute_offset = atoi(field);
+
+            // Check if parsed version matches expectations
             if(gotchi_cfg.cfg_version == gotchi_cfg_user.cfg_version)
             {
                 bool restart_telemetry_timer = gotchi_cfg.log_interval_hz != gotchi_cfg_user.log_interval_hz;

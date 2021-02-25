@@ -35,6 +35,7 @@ typedef enum {
 	GPS_DELTA,
 	IMU,
 	BMS,
+	FREESK8
 } LOG_MSG_TYPES;
 
 typedef struct {
@@ -107,6 +108,21 @@ typedef struct {
 	int16_t latitude; // Div/100000 // +-0.32767
 	int16_t longitude; // Div/100000 // +-0.32767
 } LOG_GPS_DELTA;
+
+typedef enum {
+	TIME_SYNC = 0, // When a time sync event occurs while logging
+	USER_FLAG, // When the user wants to flag a moment while logging
+} LOG_FREESK8_EVENTS;
+
+typedef struct {
+	uint8_t event_type;
+	//NOTE: 7 bytes lost in data alignment
+	uint8_t unused;
+	uint16_t unused2;
+	uint32_t unused3;
+
+	int64_t event_data;
+} LOG_FREESK8;
 
 typedef enum {
 	MOTE_PACKET_BATT_LEVEL = 0,

@@ -8,7 +8,8 @@ struct gotchi_configuration {
 	uint8_t log_interval_hz;
 	uint8_t log_auto_erase_when_full;
 	
-	uint8_t multi_esc_mode; //0,1 = Single ESC Mode
+	uint8_t multi_esc_mode; //0 = Single ESC Mode
+							//1 = Estimated Dual Mode
 							//2 = Dual ESC Mode
 							//4 = Quad ESC Mode
 	uint8_t multi_esc_ids[4];
@@ -18,6 +19,9 @@ struct gotchi_configuration {
 	float alert_esc_temp;
 	float alert_motor_temp;
 	uint8_t alert_storage_at_capacity;
+
+	int8_t timezone_hour_offset;
+	uint8_t timezone_minute_offset;
 
 	uint32_t cfg_version;
 };

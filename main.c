@@ -90,6 +90,7 @@ const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(0);
 lwgps_t hgps;
 static LOG_GPS log_message_gps;
 static LOG_GPS_DELTA log_message_gps_delta;
+static LOG_FREESK8 log_message_freesk8;
 
 ////////////////////////////////////////
 // Button input
@@ -467,7 +468,10 @@ const struct gotchi_configuration gotchi_cfg_default = {
 	.alert_motor_temp = 0.0,
 	.alert_storage_at_capacity = 0,
 
-	.cfg_version = 3 // Expected configuration version, increment with changes to struct
+	.timezone_hour_offset = 0,
+	.timezone_minute_offset = 0,
+
+	.cfg_version = 4 // Expected configuration version, increment with changes to struct
 };
 
 struct gotchi_configuration gotchi_cfg_user = {
@@ -486,6 +490,9 @@ struct gotchi_configuration gotchi_cfg_user = {
 	.alert_esc_temp = 0.0,
 	.alert_motor_temp = 0.0,
 	.alert_storage_at_capacity = 0,
+
+	.timezone_hour_offset = 0,
+	.timezone_minute_offset = 0,
 
 	.cfg_version = 0
 };
@@ -1445,8 +1452,8 @@ void process_packet_vesc(unsigned char *data, unsigned int len) {
 				bytes_written += lfs_file_write(&lfs, &file, &log_message_esc, sizeof(log_message_esc));
 				bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
 
-				NRF_LOG_INFO("ESC Bytes Written: %ld",bytes_written);
-				NRF_LOG_FLUSH();
+				//NRF_LOG_INFO("ESC Bytes Written: %ld",bytes_written);
+				//NRF_LOG_FLUSH();
 			}
 			else
 			{
@@ -1478,8 +1485,8 @@ void process_packet_vesc(unsigned char *data, unsigned int len) {
 				bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
 				bytes_written += lfs_file_write(&lfs, &file, &log_message_esc_delta, sizeof(log_message_esc_delta));
 				bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
-				NRF_LOG_INFO("ESC DELTA Bytes Written: %ld", bytes_written);
-				NRF_LOG_FLUSH();
+				//NRF_LOG_INFO("ESC DELTA Bytes Written: %ld", bytes_written);
+				//NRF_LOG_FLUSH();
 			}
 		}
 
@@ -1669,8 +1676,8 @@ static void logging_timer_handler(void *p_context) {
 			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
 			bytes_written += lfs_file_write(&lfs, &file, &log_message_gps, sizeof(log_message_gps));
 			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
-			NRF_LOG_INFO("GPS Bytes Written: %ld", bytes_written);
-			NRF_LOG_FLUSH();
+			//NRF_LOG_INFO("GPS Bytes Written: %ld", bytes_written);
+			//NRF_LOG_FLUSH();
 		}
 		// We can write a GPS Delta message!
 		else
@@ -1699,8 +1706,8 @@ static void logging_timer_handler(void *p_context) {
 			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
 			bytes_written += lfs_file_write(&lfs, &file, &log_message_gps_delta, sizeof(log_message_gps_delta));
 			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
-			NRF_LOG_INFO("GPS DELTA Bytes Written: %ld", bytes_written);
-			NRF_LOG_FLUSH();
+			//NRF_LOG_INFO("GPS DELTA Bytes Written: %ld", bytes_written);
+			//NRF_LOG_FLUSH();
 		}
 	}
 
@@ -1739,26 +1746,60 @@ static void logging_timer_handler(void *p_context) {
 	}
 
 	//TODO: Sync GPS time - this works but is UTC and we've made no commitment to timezones
-	/*
-	if (!rtc_time_has_sync && !log_file_active && hgps.seconds != 247 && hgps.seconds != 0)
+	if (!rtc_time_has_sync && gps_signal_locked && hgps.seconds != 247 && hgps.seconds != 0)
 	{
-		// Update time in memory
-		tmTime->tm_year = 2000 + hgps.year - 1900;
-		tmTime->tm_mon = hgps.month - 1;
-		tmTime->tm_mday = hgps.date;
-		tmTime->tm_hour = hgps.hours;
-		tmTime->tm_min = hgps.minutes;
-		tmTime->tm_sec = hgps.seconds;
-		currentTime = mktime(tmTime);
-		currentTime += -6 * 60 * 60; //TODO: Add the user's offset from configuration
+		//strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
+		//NRF_LOG_INFO("Setting time from GPS; time was %s or %ld", datetimestring, currentTime);
+		//NRF_LOG_FLUSH();
+
+		// Convert the time from the GPS
+		time_t newTimeSeconds;
+		struct tm gpsTime;
+		gpsTime.tm_year = 2000 + hgps.year - 1900;
+		gpsTime.tm_mon = hgps.month - 1;
+		gpsTime.tm_mday = hgps.date;
+		gpsTime.tm_hour = hgps.hours;
+		gpsTime.tm_min = hgps.minutes;
+		gpsTime.tm_sec = hgps.seconds;
+		// Give it to me in time_t
+		newTimeSeconds = mktime(&gpsTime);
+		// Add timezone offset
+		newTimeSeconds += gotchi_cfg_user.timezone_hour_offset * 60 * 60; // Add timezone hour offset in seconds
+		newTimeSeconds += gotchi_cfg_user.timezone_minute_offset * 60; // Add timezone minute offset in seconds
+		// Update tmTime with timezone adjustment
+		localtime_r(&newTimeSeconds, &gpsTime);
+
+		//strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
+		//NRF_LOG_INFO("Setting time from GPS; time now %s or %ld", datetimestring, newTimeSeconds);
+		//NRF_LOG_FLUSH();
+
+		// Store time sync difference in seconds if we are currently logging
+		if (log_file_active)
+		{
+			log_message_freesk8.event_type = TIME_SYNC;
+			log_message_freesk8.event_data = currentTime - newTimeSeconds;
+
+			// Write out FREESK8 TIME_SYNC event
+			size_t bytes_written = 0;
+			char start[3] = {PACKET_START, FREESK8, sizeof(log_message_freesk8)};
+			char end[1] = {PACKET_END};
+			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+			bytes_written += lfs_file_write(&lfs, &file, &log_message_freesk8, sizeof(log_message_freesk8));
+			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+			NRF_LOG_INFO("TIME_SYNC Bytes Written: %ld", bytes_written);
+			NRF_LOG_FLUSH();
+		}
+
+		// Update time
+		memcpy(tmTime, &gpsTime, sizeof(struct tm));
+		currentTime = newTimeSeconds;
 
 		// Update time on RTC
 		update_rtc = true;
 
-		NRF_LOG_INFO("Setting time from GPS");
+		NRF_LOG_INFO("Time set from GPS %ld", currentTime);
 		NRF_LOG_FLUSH();
 	}
-	*/
 
 	// Check if the ESC has not responded in 3 seconds and try swapping the TX and RX pins
 	if (currentTime - time_esc_last_responded > 3)
@@ -2240,6 +2281,7 @@ void user_cfg_set(bool restart_telemetry_timer)
 		app_timer_stop(m_telemetry_timer);
 		app_timer_start(m_telemetry_timer, APP_TIMER_TICKS(1000 / gotchi_cfg_user.log_interval_hz), NULL);
 	}
+	rtc_time_has_sync = false; // Clear time has sync flag since timezone might update
 }
 
 void user_cfg_get(void)
