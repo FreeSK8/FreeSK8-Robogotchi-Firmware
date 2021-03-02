@@ -2429,6 +2429,10 @@ int main(void) {
 	}
 #endif
 
+	// GotchiNet Registration Code
+	NRF_LOG_INFO("GotchiNet: %d", abs(NRF_FICR->DEVICEID[1] ^  NRF_FICR->DEVICEADDR[1]));
+	NRF_LOG_FLUSH();
+
 	// BLE PIN CODE
 	uint32_t ble_bondage_safe_word = (NRF_FICR->DEVICEID[0] +  NRF_FICR->DEVICEID[1]) % 999999;
 	if (ble_bondage_safe_word < 100000)
