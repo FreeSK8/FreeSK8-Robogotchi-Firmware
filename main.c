@@ -1747,11 +1747,6 @@ static void logging_timer_handler(void *p_context) {
 		gpsTime.tm_sec = hgps.seconds;
 		// Give it to me in time_t
 		newTimeSeconds = mktime(&gpsTime);
-		// Add timezone offset
-		newTimeSeconds += gotchi_cfg_user.timezone_hour_offset * 60 * 60; // Add timezone hour offset in seconds
-		newTimeSeconds += gotchi_cfg_user.timezone_minute_offset * 60; // Add timezone minute offset in seconds
-		// Update tmTime with timezone adjustment
-		localtime_r(&newTimeSeconds, &gpsTime);
 
 		//strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
 		//NRF_LOG_INFO("Setting time from GPS; time now %s or %ld", datetimestring, newTimeSeconds);
