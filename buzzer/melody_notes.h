@@ -93,6 +93,7 @@
 #define REST 0
 
 enum {
+    MELODY_NONE,
     MELODY_GOTCHI_FAULT,
     MELODY_ESC_FAULT,
     MELODY_BLE_FAIL,

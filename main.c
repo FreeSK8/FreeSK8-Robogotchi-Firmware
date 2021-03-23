@@ -128,14 +128,25 @@ void i2c_oled_comm_handle(uint8_t hdl_address, uint8_t *hdl_buffer, size_t hdl_b
 #include "rtc.h"
 volatile bool update_rtc = false; // Set to true to trigger I2C communication with RTC module
 volatile bool rtc_time_has_sync = false; // Set to true when the RTC has been set by GPS or Mobile app
-struct tm * tmTime;
-time_t currentTime;
+static struct tm * tmTime;
+static time_t currentTime;
 static char datetimestring[ 64 ] = { 0 };
 volatile bool log_file_active = false;
 static volatile bool write_logdata_now = false;
 static volatile bool gps_signal_locked = false;
 static time_t time_esc_last_responded; // For triggering TX and RX pin swapping
 static time_t time_gps_last_responded; // For detecting stale data
+
+void update_time(int syear, int smonth, int sday, int shour, int sminute, int ssecond)
+{
+	tmTime->tm_year = syear - 1900;
+	tmTime->tm_mon = smonth - 1;
+	tmTime->tm_mday = sday;
+	tmTime->tm_hour = shour;
+	tmTime->tm_min = sminute;
+	tmTime->tm_sec = ssecond;
+	currentTime = mktime(tmTime);
+}
 
 ////////////////////////////////////////
 // Fault tracking
@@ -168,7 +179,7 @@ bool is_melody_playing = false;
 bool is_melody_playing_pause = false;
 uint32_t melody_next_note = 0;
 int *melody;
-
+int melody_last_alert_index = MELODY_NONE;
 
 
 uint32_t app_timer_ms(uint32_t ticks)
@@ -2122,7 +2133,7 @@ void log_file_start()
 void update_status_packet(char * buffer)
 {
 	// Update the buffer with the a status response packet
-	sprintf(buffer, "status,OK,%d,%d,%d,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free, lfs_file_count, hgps.fix, hgps.sats_in_view);
+	sprintf(buffer, "status,OK,%d,%d,%d,%d,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free, lfs_file_count, hgps.fix, hgps.sats_in_view, melody_last_alert_index);
 }
 
 uint16_t create_fault_packet(char * buffer)
@@ -2404,7 +2415,7 @@ int main(void) {
 	// Set RTC to trickle charge super capacitor
 	rtc_battery_charge();
 	// Get the current time from the RTC
-	rtc_get_time();
+	rtc_get_time(tmTime, &currentTime);
 	// Set the last ESC response time to now
 	time_esc_last_responded = currentTime;
 	// Set the last GPS response time to now
@@ -2465,7 +2476,7 @@ int main(void) {
 	advertising_init();
 	conn_params_init();
 	peer_manager_init();
-	command_interface_init(&ble_send_logbuffer, &lfs);
+	command_interface_init(&ble_send_logbuffer, &lfs, &update_time);
 
 	packet_init(uart_send_buffer, process_packet_vesc, PACKET_VESC);
 	packet_init(ble_send_buffer, process_packet_ble, PACKET_BLE);
