@@ -1788,6 +1788,8 @@ static void logging_timer_handler(void *p_context) {
 		update_rtc = true;
 
 		// Update internal state
+		log_message_gps.dt = 0; // Ensure non-delta is written next
+		log_message_esc.dt = 0; // Ensure non-delta is written next
 		time_esc_last_responded = currentTime;
 		time_gps_last_responded = currentTime;
 		lastTimeBoardMoved = currentTime;
