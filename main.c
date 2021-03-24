@@ -217,11 +217,13 @@ void melody_play(int index, bool interrupt_melody)
 			melody_notes=sizeof(melody_gotchi_fault)/sizeof(melody_gotchi_fault[0])/2;
 			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 			melody_wholenote = (60000 * 4) / tempo_gotchi_fault;
+			melody_last_alert_index = MELODY_GOTCHI_FAULT;
 		break;
 		case MELODY_ESC_FAULT:
 			melody = (int*)&melody_esc_fault;
 			melody_notes=sizeof(melody_esc_fault)/sizeof(melody_esc_fault[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_esc_fault;
+			melody_last_alert_index = MELODY_ESC_FAULT;
 		break;
 		case MELODY_BLE_FAIL:
 			melody = (int*)&melody_ble_fail;
@@ -242,21 +244,25 @@ void melody_play(int index, bool interrupt_melody)
 			melody = (int*)&melody_storage_limit;
 			melody_notes=sizeof(melody_storage_limit)/sizeof(melody_storage_limit[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_storage_limit;
+			melody_last_alert_index = MELODY_STORAGE_LIMIT;
 		break;
 		case MELODY_ESC_TEMP:
 			melody = (int*)&melody_esc_temp;
 			melody_notes=sizeof(melody_esc_temp)/sizeof(melody_esc_temp[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_esc_temp;
+			melody_last_alert_index = MELODY_ESC_TEMP;
 		break;
 		case MELODY_MOTOR_TEMP:
 			melody = (int*)&melody_motor_temp;
 			melody_notes=sizeof(melody_motor_temp)/sizeof(melody_motor_temp[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_motor_temp;
+			melody_last_alert_index = MELODY_MOTOR_TEMP;
 		break;
 		case MELODY_VOLTAGE_LOW:
 			melody = (int*)&melody_voltage_low;
 			melody_notes=sizeof(melody_voltage_low)/sizeof(melody_voltage_low[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_voltage_low;
+			melody_last_alert_index = MELODY_VOLTAGE_LOW;
 		break;
 		case MELODY_ASC:
 			melody = (int*)&melody_ascending;
