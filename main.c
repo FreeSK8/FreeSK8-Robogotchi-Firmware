@@ -180,6 +180,7 @@ bool is_melody_playing_pause = false;
 uint32_t melody_next_note = 0;
 int *melody;
 int melody_last_alert_index = MELODY_NONE;
+uint16_t melody_snooze_seconds = 0;
 
 
 uint32_t app_timer_ms(uint32_t ticks)
@@ -203,7 +204,7 @@ uint32_t millis(void)
 
 void melody_play(int index, bool interrupt_melody)
 {
-	if (is_melody_playing && !interrupt_melody)
+	if (is_melody_playing && !interrupt_melody || melody_snooze_seconds > 0)
 	{
 		return;
 	}
@@ -1635,6 +1636,12 @@ static void logging_timer_handler(void *p_context) {
 
 	strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
 
+	// Decrement melody snooze counter if active
+	if (melody_snooze_seconds > 0)
+	{
+		--melody_snooze_seconds;
+	}
+
 	// Write GPS status to display
 	Adafruit_GFX_setCursor(64,8);
 	snprintf(gps_status, sizeof(gps_status), "GPS %02d S%01d%01d", hgps.seconds, hgps.is_valid, hgps.fix);
@@ -2135,7 +2142,7 @@ void log_file_start()
 void update_status_packet(char * buffer)
 {
 	// Update the buffer with the a status response packet
-	sprintf(buffer, "status,OK,%d,%d,%d,%d,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free, lfs_file_count, hgps.fix, hgps.sats_in_view, melody_last_alert_index);
+	sprintf(buffer, "status,OK,%d,%d,%d,%d,%d,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free, lfs_file_count, hgps.fix, hgps.sats_in_view, melody_last_alert_index, melody_snooze_seconds);
 }
 
 uint16_t create_fault_packet(char * buffer)

@@ -9,6 +9,7 @@
 #include "nrf_ble_gatt.h"
 #include "user_cfg.h"
 
+extern uint16_t melody_snooze_seconds;
 extern uint16_t lfs_file_count;
 extern void display_file_count(void);
 extern uint8_t lfs_free_space_check(void);
@@ -240,7 +241,7 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.8.2,beta");
+            sprintf((char *)command_response_buffer, "version,0.9.0,beta");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
@@ -360,6 +361,13 @@ void command_interface_process_byte(char incoming)
                 NRF_LOG_INFO("sync_in_progress was false");
                 NRF_LOG_FLUSH();
             }
+        }
+        else if(strncmp(command_input_buffer, "snooze,", 7) == 0)
+        {
+            // Set melody snooze duration
+            NRF_LOG_INFO("snooze command received: %s seconds", command_input_buffer+7);
+            NRF_LOG_FLUSH();
+            melody_snooze_seconds = atoi(command_input_buffer+7);
         }
 
         memset(command_input_buffer, 0, sizeof(command_input_buffer));
