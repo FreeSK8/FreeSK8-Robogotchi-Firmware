@@ -204,7 +204,7 @@ uint32_t millis(void)
 
 void melody_play(int index, bool interrupt_melody)
 {
-	if (is_melody_playing && !interrupt_melody || melody_snooze_seconds > 0)
+	if ((is_melody_playing && !interrupt_melody) || melody_snooze_seconds > 0)
 	{
 		return;
 	}
@@ -2450,8 +2450,12 @@ int main(void) {
 	}
 #endif
 
+	// Robogotchi Unique ID
+	NRF_LOG_INFO("Robogotchi ID: %02x%02x", NRF_FICR->DEVICEID[0], NRF_FICR->DEVICEID[1]);
+	NRF_LOG_FLUSH();
+
 	// GotchiNet Registration Code
-	NRF_LOG_INFO("GotchiNet: %d", abs(NRF_FICR->DEVICEID[1] ^ NRF_FICR->DEVICEADDR[1]));
+	NRF_LOG_INFO("GotchiNet Registration: %d", abs(NRF_FICR->DEVICEID[1] ^ NRF_FICR->DEVICEADDR[1]));
 	NRF_LOG_FLUSH();
 
 	// BLE PIN CODE
@@ -2461,7 +2465,7 @@ int main(void) {
 		NRF_LOG_WARNING("Computed PIN was 5 digits");
 		ble_bondage_safe_word += 100000;
 	}
-	NRF_LOG_INFO("PIN CODE %d", ble_bondage_safe_word);
+	NRF_LOG_INFO("BLE PIN: %d", ble_bondage_safe_word);
 	NRF_LOG_FLUSH();
 	// Store PIN for Display
 	itoa(ble_bondage_safe_word, ble_pin, 10);

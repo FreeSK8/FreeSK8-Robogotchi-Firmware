@@ -369,6 +369,14 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_FLUSH();
             melody_snooze_seconds = atoi(command_input_buffer+7);
         }
+        else if(strncmp(command_input_buffer, "roboid", 6) == 0)
+        {
+            // Return robogotchi unique ID
+            NRF_LOG_INFO("robogotchi ID command received");
+            NRF_LOG_FLUSH();
+            sprintf((char *)command_response_buffer, "roboid,%02x%02x", NRF_FICR->DEVICEID[0], NRF_FICR->DEVICEID[1]);
+            m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
+        }
 
         memset(command_input_buffer, 0, sizeof(command_input_buffer));
         command_input_index = 0;
