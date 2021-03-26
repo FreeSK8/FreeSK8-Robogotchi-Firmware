@@ -230,11 +230,6 @@ void melody_play(int index, bool interrupt_melody)
 			melody_notes=sizeof(melody_ble_fail)/sizeof(melody_ble_fail[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_ble_fail;
 		break;
-		case MELODY_NOKIA:
-			melody = (int*)&melody_nokia;
-			melody_notes=sizeof(melody_nokia)/sizeof(melody_nokia[0])/2;
-			melody_wholenote = (60000 * 4) / tempo_nokia;
-		break;
 		case MELODY_BLE_SUCCESS:
 			melody = (int*)&melody_ble_success;
 			melody_notes=sizeof(melody_ble_success)/sizeof(melody_ble_success[0])/2;
@@ -264,12 +259,12 @@ void melody_play(int index, bool interrupt_melody)
 			melody_wholenote = (60000 * 4) / tempo_voltage_low;
 			melody_last_alert_index = MELODY_VOLTAGE_LOW;
 		break;
-		case MELODY_ASC:
+		case MELODY_LOG_START:
 			melody = (int*)&melody_ascending;
 			melody_notes=sizeof(melody_ascending)/sizeof(melody_ascending[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_ascending;
 		break;
-		case MELODY_DESC:
+		case MELODY_LOG_STOP:
 			melody = (int*)&melody_descending;
 			melody_notes=sizeof(melody_descending)/sizeof(melody_descending[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_descending;
@@ -2059,7 +2054,7 @@ int log_file_stop()
 		int lfs_close_result = lfs_file_close(&lfs, &file);
 		NRF_LOG_INFO("log_file_stop::lfs_file_close() result: %d", lfs_close_result);
 		NRF_LOG_FLUSH();
-		melody_play(MELODY_DESC, true); // Play log stop melody, interrupt
+		melody_play(MELODY_LOG_STOP, true); // Play log stop melody, interrupt
 		return lfs_close_result;
 	}
 	return -1;
@@ -2138,7 +2133,7 @@ void log_file_start()
 		NRF_LOG_INFO("LOG_HEADER Bytes Written: %ld", bytes_written);
 		NRF_LOG_FLUSH();
 
-		melody_play(MELODY_ASC, false); // Play log started melody, do not interrupt
+		melody_play(MELODY_LOG_START, false); // Play log started melody, do not interrupt
 	} else {
 		NRF_LOG_ERROR("log_file_start::lfs_file_open: Failed with result: %d", file_open_result);
 		NRF_LOG_FLUSH();
