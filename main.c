@@ -629,11 +629,7 @@ app_uart_comm_params_t m_uart_comm_params =
 		.cts_pin_no   = 0,
 		.flow_control = APP_UART_FLOW_CONTROL_DISABLED,
 		.use_parity   = false,
-#if defined (UART_PRESENT)
-		.baud_rate	= NRF_UART_BAUDRATE_115200
-#else
 		.baud_rate	= NRF_UARTE_BAUDRATE_115200
-#endif
 };
 gps_uart_comm_params_t m_gpsuart_comm_params =
 {
@@ -1237,13 +1233,38 @@ static void uart_init(void) {
 	APP_ERROR_CHECK(err_code);
 }
 
+enum {
+	PIN_STATE_DEFAULT,
+	PIN_STATE_XENITH,
+	PIN_STATE_REVERSED,
+};
+#define PIN_STATES 3
 static void uart_swap_pins(void) {
-
+	static int pin_swap_state = PIN_STATE_DEFAULT;
 	app_uart_close();
 
-	uint32_t old_rx_pin = m_uart_comm_params.rx_pin_no;
-	m_uart_comm_params.rx_pin_no = m_uart_comm_params.tx_pin_no;
-	m_uart_comm_params.tx_pin_no = old_rx_pin;
+	if (++pin_swap_state == PIN_STATES) {
+		pin_swap_state = PIN_STATE_DEFAULT;
+	}
+
+	switch (pin_swap_state)
+	{
+		case PIN_STATE_DEFAULT:
+			m_uart_comm_params.baud_rate = NRF_UARTE_BAUDRATE_115200;
+			m_uart_comm_params.rx_pin_no = UART_RX;
+			m_uart_comm_params.tx_pin_no = UART_TX;
+		break;
+		case PIN_STATE_XENITH:
+			m_uart_comm_params.baud_rate = NRF_UARTE_BAUDRATE_250000;
+			m_uart_comm_params.rx_pin_no = UART_RX;
+			m_uart_comm_params.tx_pin_no = UART_TX;
+		break;
+		case PIN_STATE_REVERSED:
+			m_uart_comm_params.baud_rate = NRF_UARTE_BAUDRATE_115200;
+			m_uart_comm_params.rx_pin_no = UART_TX;
+			m_uart_comm_params.tx_pin_no = UART_RX;
+		break;
+	}
 
 	packet_reset(PACKET_VESC);
 	uart_init();
@@ -1807,10 +1828,10 @@ static void logging_timer_handler(void *p_context) {
 		NRF_LOG_FLUSH();
 	}
 
-	// Check if the ESC has not responded in 3 seconds and try swapping the TX and RX pins
-	if (currentTime - time_esc_last_responded > 3)
+	// Check if the ESC has not responded in 1 second and try swapping the UART pin configuration
+	if (currentTime - time_esc_last_responded > 1)
 	{
-		NRF_LOG_INFO("ESC has not responded in 3 seconds. Swapping UART TX and RX pins");
+		NRF_LOG_INFO("ESC has not responded in > 1 second. Trying next UART configuration.");
 		NRF_LOG_FLUSH();
 		uart_swap_pins();
 		// Reset the countdown
