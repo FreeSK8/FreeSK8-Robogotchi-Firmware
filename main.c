@@ -1256,8 +1256,8 @@ static void uart_swap_pins(void) {
 		break;
 		case PIN_STATE_XENITH:
 			m_uart_comm_params.baud_rate = NRF_UARTE_BAUDRATE_250000;
-			m_uart_comm_params.rx_pin_no = UART_RX;
-			m_uart_comm_params.tx_pin_no = UART_TX;
+			m_uart_comm_params.rx_pin_no = UART_TX;
+			m_uart_comm_params.tx_pin_no = UART_RX;
 		break;
 		case PIN_STATE_REVERSED:
 			m_uart_comm_params.baud_rate = NRF_UARTE_BAUDRATE_115200;
