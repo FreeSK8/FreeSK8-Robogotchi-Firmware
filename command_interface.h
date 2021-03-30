@@ -12,7 +12,11 @@ enum{
 
 
 void command_interface_process_byte( char incoming );
-void command_interface_init(void (*ble_send_logbuffer)(unsigned char *, unsigned int), lfs_t *lfs );
+void command_interface_init(
+    void (*ble_send_logbuffer)(unsigned char *, unsigned int),
+    lfs_t *lfs,
+    void (*update_time)(int, int, int, int, int, int)
+);
 void command_interface_continue_transfer();
 
 

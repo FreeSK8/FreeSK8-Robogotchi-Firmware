@@ -208,6 +208,7 @@ static int getRotation() {return 2;}
 static const int WIDTH = SSD1306_LCDWIDTH;
 static const int HEIGHT = SSD1306_LCDHEIGHT;
 static int8_t _i2caddr, _vccstate;
+static bool display_responding = true;
 
 // the most basic function, set a single pixel
 void SSD1306_drawPixel(int16_t x, int16_t y, uint16_t color) {
@@ -340,6 +341,11 @@ void SSD1306_invertDisplay(uint8_t i) {
 #include "nrf_log_ctrl.h"
 void SSD1306_command(uint8_t c)
 {
+  if (!display_responding)
+  {
+    // Do not attempt to communicate with the display
+    return;
+  }
   ret_code_t ret;
   static uint8_t data[2] = {0};
   data[1] = c;
@@ -348,8 +354,8 @@ void SSD1306_command(uint8_t c)
   {
     NRF_LOG_INFO("SSD1306_command twi failed with: %d", ret);
     NRF_LOG_FLUSH();
+    display_responding = false;
   }
-  APP_ERROR_CHECK(ret);
 }
 
 // startscrollright
@@ -442,6 +448,11 @@ void SSD1306_dim(bool dim) {
 }
 
 void SSD1306_display(void) {
+  if (!display_responding)
+  {
+    // Do not attempt to communicate with the display
+    return;
+  }
   SSD1306_command(SSD1306_COLUMNADDR);
   SSD1306_command(0);   // Column start address (0 = reset)
   SSD1306_command(SSD1306_LCDWIDTH-1); // Column end address (127 = reset)

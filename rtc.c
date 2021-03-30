@@ -6,8 +6,6 @@
 #include <time.h>
 
 extern const nrf_drv_twi_t m_twi_master;
-extern struct tm * tmTime;
-extern time_t currentTime;
 
 void rtc_battery_charge()
 {
@@ -82,7 +80,7 @@ static inline uint8_t bcd_decimal(uint8_t hex)
     return dec;
 }     
 
-void rtc_get_time()
+void rtc_get_time(struct tm * tmTime, time_t * currentTime)
 {
 	NRF_LOG_INFO("Requesting time from RTC");
 	NRF_LOG_FLUSH();
@@ -113,7 +111,7 @@ void rtc_get_time()
 	tmTime->tm_wday = bcd_decimal( pdata[ 4 ] ) - 1;
 	tmTime->tm_mon  = bcd_decimal( pdata[ 5 ] ) - 1;
 	tmTime->tm_year = bcd_decimal( pdata[ 6 ] ) + 100; //tm_year starts at 1900, rtc starts at 2000
-	currentTime = mktime( tmTime );
+	*currentTime = mktime( tmTime );
 
 	char dt_string[64] = {0};
 	strftime(dt_string, 64, "%Y-%m-%dT%H:%M:%S", tmTime);

@@ -93,17 +93,17 @@
 #define REST 0
 
 enum {
+    MELODY_NONE,
     MELODY_GOTCHI_FAULT,
     MELODY_ESC_FAULT,
     MELODY_BLE_FAIL,
-    MELODY_NOKIA,
     MELODY_BLE_SUCCESS,
     MELODY_STORAGE_LIMIT,
     MELODY_ESC_TEMP,
     MELODY_MOTOR_TEMP,
     MELODY_VOLTAGE_LOW,
-    MELODY_ASC,
-    MELODY_DESC,
+    MELODY_LOG_START,
+    MELODY_LOG_STOP,
     MELODY_STARTUP,
     MELODY_GPS_LOCK,
     MELODY_GPS_LOST,
@@ -147,16 +147,6 @@ const int melody_ble_fail[] = {
    NOTE_C2,4, NOTE_C2,4, NOTE_B2,4
 };
 const int tempo_ble_fail = 360;
-
-const int melody_nokia[] = {
-    // Nokia Ringtone
-    // Score available at https://musescore.com/user/29944637/scores/5266155
-    NOTE_E5, 8, NOTE_D5, 8, NOTE_FS4, 4, NOTE_GS4, 4,
-    NOTE_CS5, 8, NOTE_B4, 8, NOTE_D4, 4, NOTE_E4, 4,
-    NOTE_B4, 8, NOTE_A4, 8, NOTE_CS4, 4, NOTE_E4, 4,
-    NOTE_A4, 2,
-};
-const int tempo_nokia = 180;
 
 const int melody_ble_success[] = {
     NOTE_D4,4, NOTE_D4,4, NOTE_G4,4

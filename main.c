@@ -128,14 +128,25 @@ void i2c_oled_comm_handle(uint8_t hdl_address, uint8_t *hdl_buffer, size_t hdl_b
 #include "rtc.h"
 volatile bool update_rtc = false; // Set to true to trigger I2C communication with RTC module
 volatile bool rtc_time_has_sync = false; // Set to true when the RTC has been set by GPS or Mobile app
-struct tm * tmTime;
-time_t currentTime;
+static struct tm * tmTime;
+static time_t currentTime;
 static char datetimestring[ 64 ] = { 0 };
 volatile bool log_file_active = false;
 static volatile bool write_logdata_now = false;
 static volatile bool gps_signal_locked = false;
 static time_t time_esc_last_responded; // For triggering TX and RX pin swapping
 static time_t time_gps_last_responded; // For detecting stale data
+
+void update_time(int syear, int smonth, int sday, int shour, int sminute, int ssecond)
+{
+	tmTime->tm_year = syear - 1900;
+	tmTime->tm_mon = smonth - 1;
+	tmTime->tm_mday = sday;
+	tmTime->tm_hour = shour;
+	tmTime->tm_min = sminute;
+	tmTime->tm_sec = ssecond;
+	currentTime = mktime(tmTime);
+}
 
 ////////////////////////////////////////
 // Fault tracking
@@ -168,7 +179,8 @@ bool is_melody_playing = false;
 bool is_melody_playing_pause = false;
 uint32_t melody_next_note = 0;
 int *melody;
-
+int melody_last_alert_index = MELODY_NONE;
+uint16_t melody_snooze_seconds = 0;
 
 
 uint32_t app_timer_ms(uint32_t ticks)
@@ -192,7 +204,7 @@ uint32_t millis(void)
 
 void melody_play(int index, bool interrupt_melody)
 {
-	if (is_melody_playing && !interrupt_melody)
+	if ((is_melody_playing && !interrupt_melody) || melody_snooze_seconds > 0)
 	{
 		return;
 	}
@@ -205,21 +217,18 @@ void melody_play(int index, bool interrupt_melody)
 			melody_notes=sizeof(melody_gotchi_fault)/sizeof(melody_gotchi_fault[0])/2;
 			// this calculates the duration of a whole note in ms (60s/tempo)*4 beats
 			melody_wholenote = (60000 * 4) / tempo_gotchi_fault;
+			melody_last_alert_index = MELODY_GOTCHI_FAULT;
 		break;
 		case MELODY_ESC_FAULT:
 			melody = (int*)&melody_esc_fault;
 			melody_notes=sizeof(melody_esc_fault)/sizeof(melody_esc_fault[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_esc_fault;
+			melody_last_alert_index = MELODY_ESC_FAULT;
 		break;
 		case MELODY_BLE_FAIL:
 			melody = (int*)&melody_ble_fail;
 			melody_notes=sizeof(melody_ble_fail)/sizeof(melody_ble_fail[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_ble_fail;
-		break;
-		case MELODY_NOKIA:
-			melody = (int*)&melody_nokia;
-			melody_notes=sizeof(melody_nokia)/sizeof(melody_nokia[0])/2;
-			melody_wholenote = (60000 * 4) / tempo_nokia;
 		break;
 		case MELODY_BLE_SUCCESS:
 			melody = (int*)&melody_ble_success;
@@ -230,28 +239,32 @@ void melody_play(int index, bool interrupt_melody)
 			melody = (int*)&melody_storage_limit;
 			melody_notes=sizeof(melody_storage_limit)/sizeof(melody_storage_limit[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_storage_limit;
+			melody_last_alert_index = MELODY_STORAGE_LIMIT;
 		break;
 		case MELODY_ESC_TEMP:
 			melody = (int*)&melody_esc_temp;
 			melody_notes=sizeof(melody_esc_temp)/sizeof(melody_esc_temp[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_esc_temp;
+			melody_last_alert_index = MELODY_ESC_TEMP;
 		break;
 		case MELODY_MOTOR_TEMP:
 			melody = (int*)&melody_motor_temp;
 			melody_notes=sizeof(melody_motor_temp)/sizeof(melody_motor_temp[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_motor_temp;
+			melody_last_alert_index = MELODY_MOTOR_TEMP;
 		break;
 		case MELODY_VOLTAGE_LOW:
 			melody = (int*)&melody_voltage_low;
 			melody_notes=sizeof(melody_voltage_low)/sizeof(melody_voltage_low[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_voltage_low;
+			melody_last_alert_index = MELODY_VOLTAGE_LOW;
 		break;
-		case MELODY_ASC:
+		case MELODY_LOG_START:
 			melody = (int*)&melody_ascending;
 			melody_notes=sizeof(melody_ascending)/sizeof(melody_ascending[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_ascending;
 		break;
-		case MELODY_DESC:
+		case MELODY_LOG_STOP:
 			melody = (int*)&melody_descending;
 			melody_notes=sizeof(melody_descending)/sizeof(melody_descending[0])/2;
 			melody_wholenote = (60000 * 4) / tempo_descending;
@@ -616,11 +629,7 @@ app_uart_comm_params_t m_uart_comm_params =
 		.cts_pin_no   = 0,
 		.flow_control = APP_UART_FLOW_CONTROL_DISABLED,
 		.use_parity   = false,
-#if defined (UART_PRESENT)
-		.baud_rate	= NRF_UART_BAUDRATE_115200
-#else
 		.baud_rate	= NRF_UARTE_BAUDRATE_115200
-#endif
 };
 gps_uart_comm_params_t m_gpsuart_comm_params =
 {
@@ -1224,13 +1233,38 @@ static void uart_init(void) {
 	APP_ERROR_CHECK(err_code);
 }
 
+enum {
+	PIN_STATE_DEFAULT,
+	PIN_STATE_XENITH,
+	PIN_STATE_REVERSED,
+};
+#define PIN_STATES 3
 static void uart_swap_pins(void) {
-
+	static int pin_swap_state = PIN_STATE_DEFAULT;
 	app_uart_close();
 
-	uint32_t old_rx_pin = m_uart_comm_params.rx_pin_no;
-	m_uart_comm_params.rx_pin_no = m_uart_comm_params.tx_pin_no;
-	m_uart_comm_params.tx_pin_no = old_rx_pin;
+	if (++pin_swap_state == PIN_STATES) {
+		pin_swap_state = PIN_STATE_DEFAULT;
+	}
+
+	switch (pin_swap_state)
+	{
+		case PIN_STATE_DEFAULT:
+			m_uart_comm_params.baud_rate = NRF_UARTE_BAUDRATE_115200;
+			m_uart_comm_params.rx_pin_no = UART_RX;
+			m_uart_comm_params.tx_pin_no = UART_TX;
+		break;
+		case PIN_STATE_XENITH:
+			m_uart_comm_params.baud_rate = NRF_UARTE_BAUDRATE_250000;
+			m_uart_comm_params.rx_pin_no = UART_TX;
+			m_uart_comm_params.tx_pin_no = UART_RX;
+		break;
+		case PIN_STATE_REVERSED:
+			m_uart_comm_params.baud_rate = NRF_UARTE_BAUDRATE_115200;
+			m_uart_comm_params.rx_pin_no = UART_TX;
+			m_uart_comm_params.tx_pin_no = UART_RX;
+		break;
+	}
 
 	packet_reset(PACKET_VESC);
 	uart_init();
@@ -1624,6 +1658,12 @@ static void logging_timer_handler(void *p_context) {
 
 	strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
 
+	// Decrement melody snooze counter if active
+	if (melody_snooze_seconds > 0)
+	{
+		--melody_snooze_seconds;
+	}
+
 	// Write GPS status to display
 	Adafruit_GFX_setCursor(64,8);
 	snprintf(gps_status, sizeof(gps_status), "GPS %02d S%01d%01d", hgps.seconds, hgps.is_valid, hgps.fix);
@@ -1777,6 +1817,8 @@ static void logging_timer_handler(void *p_context) {
 		update_rtc = true;
 
 		// Update internal state
+		log_message_gps.dt = 0; // Ensure non-delta is written next
+		log_message_esc.dt = 0; // Ensure non-delta is written next
 		time_esc_last_responded = currentTime;
 		time_gps_last_responded = currentTime;
 		lastTimeBoardMoved = currentTime;
@@ -1786,10 +1828,10 @@ static void logging_timer_handler(void *p_context) {
 		NRF_LOG_FLUSH();
 	}
 
-	// Check if the ESC has not responded in 3 seconds and try swapping the TX and RX pins
-	if (currentTime - time_esc_last_responded > 3)
+	// Check if the ESC has not responded in 1 second and try swapping the UART pin configuration
+	if (currentTime - time_esc_last_responded > 1)
 	{
-		NRF_LOG_INFO("ESC has not responded in 3 seconds. Swapping UART TX and RX pins");
+		NRF_LOG_INFO("ESC has not responded in > 1 second. Trying next UART configuration.");
 		NRF_LOG_FLUSH();
 		uart_swap_pins();
 		// Reset the countdown
@@ -2033,7 +2075,7 @@ int log_file_stop()
 		int lfs_close_result = lfs_file_close(&lfs, &file);
 		NRF_LOG_INFO("log_file_stop::lfs_file_close() result: %d", lfs_close_result);
 		NRF_LOG_FLUSH();
-		melody_play(MELODY_DESC, true); // Play log stop melody, interrupt
+		melody_play(MELODY_LOG_STOP, true); // Play log stop melody, interrupt
 		return lfs_close_result;
 	}
 	return -1;
@@ -2112,7 +2154,7 @@ void log_file_start()
 		NRF_LOG_INFO("LOG_HEADER Bytes Written: %ld", bytes_written);
 		NRF_LOG_FLUSH();
 
-		melody_play(MELODY_ASC, false); // Play log started melody, do not interrupt
+		melody_play(MELODY_LOG_START, false); // Play log started melody, do not interrupt
 	} else {
 		NRF_LOG_ERROR("log_file_start::lfs_file_open: Failed with result: %d", file_open_result);
 		NRF_LOG_FLUSH();
@@ -2122,7 +2164,7 @@ void log_file_start()
 void update_status_packet(char * buffer)
 {
 	// Update the buffer with the a status response packet
-	sprintf(buffer, "status,OK,%d,%d,%d,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free, lfs_file_count, hgps.fix, hgps.sats_in_view);
+	sprintf(buffer, "status,OK,%d,%d,%d,%d,%d,%d,%d,%d,%d", log_file_active, fault_count, recent_fault_index, lfs_percent_free, lfs_file_count, hgps.fix, hgps.sats_in_view, melody_last_alert_index, melody_snooze_seconds);
 }
 
 uint16_t create_fault_packet(char * buffer)
@@ -2404,7 +2446,7 @@ int main(void) {
 	// Set RTC to trickle charge super capacitor
 	rtc_battery_charge();
 	// Get the current time from the RTC
-	rtc_get_time();
+	rtc_get_time(tmTime, &currentTime);
 	// Set the last ESC response time to now
 	time_esc_last_responded = currentTime;
 	// Set the last GPS response time to now
@@ -2424,8 +2466,12 @@ int main(void) {
 	}
 #endif
 
+	// Robogotchi Unique ID
+	NRF_LOG_INFO("Robogotchi ID: %02x%02x", NRF_FICR->DEVICEID[0], NRF_FICR->DEVICEID[1]);
+	NRF_LOG_FLUSH();
+
 	// GotchiNet Registration Code
-	NRF_LOG_INFO("GotchiNet: %d", abs(NRF_FICR->DEVICEID[1] ^ NRF_FICR->DEVICEADDR[1]));
+	NRF_LOG_INFO("GotchiNet Registration: %d", abs(NRF_FICR->DEVICEID[1] ^ NRF_FICR->DEVICEADDR[1]));
 	NRF_LOG_FLUSH();
 
 	// BLE PIN CODE
@@ -2435,7 +2481,7 @@ int main(void) {
 		NRF_LOG_WARNING("Computed PIN was 5 digits");
 		ble_bondage_safe_word += 100000;
 	}
-	NRF_LOG_INFO("PIN CODE %d", ble_bondage_safe_word);
+	NRF_LOG_INFO("BLE PIN: %d", ble_bondage_safe_word);
 	NRF_LOG_FLUSH();
 	// Store PIN for Display
 	itoa(ble_bondage_safe_word, ble_pin, 10);
@@ -2465,7 +2511,7 @@ int main(void) {
 	advertising_init();
 	conn_params_init();
 	peer_manager_init();
-	command_interface_init(&ble_send_logbuffer, &lfs);
+	command_interface_init(&ble_send_logbuffer, &lfs, &update_time);
 
 	packet_init(uart_send_buffer, process_packet_vesc, PACKET_VESC);
 	packet_init(ble_send_buffer, process_packet_ble, PACKET_BLE);

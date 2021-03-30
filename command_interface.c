@@ -9,6 +9,7 @@
 #include "nrf_ble_gatt.h"
 #include "user_cfg.h"
 
+extern uint16_t melody_snooze_seconds;
 extern uint16_t lfs_file_count;
 extern void display_file_count(void);
 extern uint8_t lfs_free_space_check(void);
@@ -21,40 +22,40 @@ extern uint16_t m_ble_fus_max_data_len;
 extern void user_cfg_set(bool restart_telemetry_timer);
 extern struct gotchi_configuration gotchi_cfg_user;
 
-static lfs_file_t file;
+extern bool sync_in_progress;
+extern struct lfs_config cfg;
+extern volatile bool update_rtc;
+
+extern volatile bool log_file_active;
+
+static lfs_file_t file_command_interface;
 static uint8_t lfs_file_buf[256]; // Must be cache size
 static struct lfs_file_config lfs_file_config;
 static lfs_dir_t directory;
 static int32_t bytes_sent = -1; //file.ctz.size;
 
-void (*m_ble_tx_logbuffer)(unsigned char *data, unsigned int len);
+static void (*m_ble_tx_logbuffer)(unsigned char *data, unsigned int len);
 static lfs_t *m_lfs;
 
 static int command_input_index = 0;
 static char command_input_buffer[ 128 ] = { 0 };
-static unsigned char command_response_buffer[512];
+static unsigned char command_response_buffer[256];
 
-extern bool sync_in_progress;
+static void (*m_update_time)(int syear, int smonth, int sday, int shour, int sminute, int ssecond);
 
-void command_interface_init(void (*ble_send_logbuffer)(unsigned char *, unsigned int), lfs_t *lfs)
+void command_interface_init(void (*ble_send_logbuffer)(unsigned char *, unsigned int), lfs_t *lfs, void (*update_time)(int, int, int, int, int, int))
 {
     ASSERT(lfs != NULL);
     ASSERT(ble_send_logbuffer != NULL);
     m_lfs = lfs;
     m_ble_tx_logbuffer = ble_send_logbuffer;
+    m_update_time = update_time;
 
     // Prepare the static file buffer
 	memset(&lfs_file_config, 0, sizeof(struct lfs_file_config));
 	lfs_file_config.buffer = lfs_file_buf;
 	lfs_file_config.attr_count = 0;
 }
-
-extern time_t currentTime;
-extern struct tm * tmTime;
-extern struct lfs_config cfg;
-extern volatile bool update_rtc;
-
-extern volatile bool log_file_active;
 
 void command_interface_process_byte(char incoming)
 {
@@ -88,7 +89,7 @@ void command_interface_process_byte(char incoming)
                 if(strncmp(command_input_buffer, "cat", 3) == 0)
                 {
                     // Set the file position to what we've received on the client side
-                    lfs_file_seek(m_lfs, &file, atoi(command_input_buffer+4), LFS_SEEK_SET);
+                    lfs_file_seek(m_lfs, &file_command_interface, atoi(command_input_buffer+4), LFS_SEEK_SET);
                 }
                 // Continue to send data to the client
                 command_interface_continue_transfer(command_input_buffer);
@@ -126,13 +127,7 @@ void command_interface_process_byte(char incoming)
                 NRF_LOG_FLUSH();
 
                 // Update time in memory
-                tmTime->tm_year = syear - 1900;
-                tmTime->tm_mon = smonth - 1;
-                tmTime->tm_mday = sday;
-                tmTime->tm_hour = shour;
-                tmTime->tm_min = sminute;
-                tmTime->tm_sec = ssecond;
-                currentTime = mktime(tmTime);
+                m_update_time(syear, smonth, sday, shour, sminute, ssecond);
 
                 // Update time on RTC
                 update_rtc = true;
@@ -189,7 +184,7 @@ void command_interface_process_byte(char incoming)
 
             NRF_LOG_INFO("filename %s", filename);
             NRF_LOG_FLUSH();
-            if(lfs_file_opencfg(m_lfs, &file, filename, LFS_O_RDONLY, &lfs_file_config) >= 0)
+            if(lfs_file_opencfg(m_lfs, &file_command_interface, filename, LFS_O_RDONLY, &lfs_file_config) >= 0)
             {
                 sprintf((char *)command_response_buffer, "cat,%s", filename);
                 m_ble_tx_logbuffer(command_response_buffer, (size_t)strlen((const char *)command_response_buffer));
@@ -246,7 +241,7 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.8.2,beta");
+            sprintf((char *)command_response_buffer, "version,0.9.0,beta");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
@@ -358,7 +353,7 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_FLUSH();
             if (sync_in_progress)
             {
-                int close_result = lfs_file_close(m_lfs, &file);
+                int close_result = lfs_file_close(m_lfs, &file_command_interface);
                 NRF_LOG_INFO("lfs close result: %d", close_result);
                 NRF_LOG_FLUSH();
                 sync_in_progress = false;
@@ -366,6 +361,21 @@ void command_interface_process_byte(char incoming)
                 NRF_LOG_INFO("sync_in_progress was false");
                 NRF_LOG_FLUSH();
             }
+        }
+        else if(strncmp(command_input_buffer, "snooze,", 7) == 0)
+        {
+            // Set melody snooze duration
+            NRF_LOG_INFO("snooze command received: %s seconds", command_input_buffer+7);
+            NRF_LOG_FLUSH();
+            melody_snooze_seconds = atoi(command_input_buffer+7);
+        }
+        else if(strncmp(command_input_buffer, "roboid", 6) == 0)
+        {
+            // Return robogotchi unique ID
+            NRF_LOG_INFO("robogotchi ID command received");
+            NRF_LOG_FLUSH();
+            sprintf((char *)command_response_buffer, "roboid,%02x%02x", NRF_FICR->DEVICEID[0], NRF_FICR->DEVICEID[1]);
+            m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
 
         memset(command_input_buffer, 0, sizeof(command_input_buffer));
@@ -417,23 +427,23 @@ void command_interface_continue_transfer(char* command)
         NRF_LOG_INFO("command_interface_continue_transfer(TRANSFER_MODE_CAT)");
         NRF_LOG_FLUSH();
 
-        if(bytes_sent >= file.ctz.size)
+        if(bytes_sent >= file_command_interface.ctz.size)
         {
             m_ble_tx_logbuffer((unsigned char *)"cat,complete", strlen("cat,complete"));
 
             NRF_LOG_INFO("finished cat");
             NRF_LOG_FLUSH();
 
-            int close_result = lfs_file_close(m_lfs, &file);
+            int close_result = lfs_file_close(m_lfs, &file_command_interface);
 
             NRF_LOG_INFO("cat close result: %d", close_result);
             NRF_LOG_FLUSH();
 
             sync_in_progress = false;
         }
-        else if(bytes_sent < file.ctz.size)
+        else if(bytes_sent < file_command_interface.ctz.size)
         {
-            int32_t read_response = lfs_file_read(m_lfs, &file, &command_response_buffer, m_ble_fus_max_data_len);
+            int32_t read_response = lfs_file_read(m_lfs, &file_command_interface, &command_response_buffer, m_ble_fus_max_data_len);
             if(read_response > 0)
             {
                 m_ble_tx_logbuffer(command_response_buffer, read_response);
