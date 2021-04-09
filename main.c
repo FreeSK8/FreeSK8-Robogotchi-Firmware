@@ -511,9 +511,8 @@ uint8_t lfs_free_space_check(void)
 	NRF_LOG_FLUSH();
 
 #if HAS_DISPLAY
-	Adafruit_GFX_setCursor(88,16);
 	snprintf(display_text_buffer,4,"%02d%%", lfs_percent_free);
-	Adafruit_GFX_print(display_text_buffer);
+	Adafruit_GFX_print(display_text_buffer, 88, 16);
 	update_display = true;
 #endif
 
@@ -809,8 +808,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
 				is_connection_secure = true;
 				melody_play(MELODY_BLE_SUCCESS, true); // Play BLE Success sound
 				// Notify user connection successful
-				Adafruit_GFX_setCursor(64, 0);
-				Adafruit_GFX_print("BLE OK");
+				Adafruit_GFX_print("BLE OK", 64, 0);
 				update_display = true;
             }
             else
@@ -828,8 +826,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
         case PM_EVT_CONN_SEC_FAILED:
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
 			// Notify user connection failed
-			Adafruit_GFX_setCursor(64, 0);
-			Adafruit_GFX_print("BLEPIN");
+			Adafruit_GFX_print("BLEPIN", 64, 0);
 			update_display = true;
 			melody_play(MELODY_BLE_FAIL, false); // Play BLE Failed sound. Do not interrupt (may happen repeatedly)
             break;
@@ -1546,9 +1543,8 @@ void process_packet_vesc(unsigned char *data, unsigned int len) {
 		++esc_rx_cnt;
 #if HAS_DISPLAY
 		// Update fault code count on display
-		Adafruit_GFX_setCursor(106,16);
 		sprintf(display_text_buffer,"F%02d", recent_fault_index);
-		Adafruit_GFX_print(display_text_buffer);
+		Adafruit_GFX_print(display_text_buffer, 106, 16);
 
 		// Move dot each time we process an ESC VALUES packet
 		if (esc_rx_cnt % 2 == 0) {
@@ -1664,11 +1660,12 @@ static void logging_timer_handler(void *p_context) {
 		--melody_snooze_seconds;
 	}
 
+#if HAS_DISPLAY
 	// Write GPS status to display
-	Adafruit_GFX_setCursor(64,8);
 	snprintf(gps_status, sizeof(gps_status), "GPS %02d S%01d%01d", hgps.seconds, hgps.is_valid, hgps.fix);
-	Adafruit_GFX_print(gps_status);
+	Adafruit_GFX_print(gps_status, 64, 8);
 	update_display = true;
+#endif
 
 	// If logging is active and GPS is valid and fixed log GPS data
 	if (log_file_active && hgps.is_valid && hgps.fix > 0)
@@ -1939,9 +1936,8 @@ void display_file_count(void)
 	NRF_LOG_INFO("display_file_count");
 	NRF_LOG_FLUSH();
 #if HAS_DISPLAY
-	Adafruit_GFX_setCursor(0,8);
 	sprintf(display_text_buffer,"%d files   ", lfs_file_count);
-	Adafruit_GFX_print(display_text_buffer);
+	Adafruit_GFX_print(display_text_buffer, 0, 8);
 	update_display = true;
 #endif
 }
@@ -2042,9 +2038,8 @@ void qspi_init()
 		NRF_LOG_INFO("nrf_drv_qspi_init response %d", err_code);
 		NRF_LOG_FLUSH();
 #if HAS_DISPLAY
-		Adafruit_GFX_setCursor(0,16);
 		sprintf(display_text_buffer,"QSPI Init Failed");
-		Adafruit_GFX_print(display_text_buffer);
+		Adafruit_GFX_print(display_text_buffer, 0, 16);
 		SSD1306_display();
 #endif
 		while(1);
@@ -2063,9 +2058,8 @@ int log_file_stop()
 		log_file_active = false;
 
 #if HAS_DISPLAY
-		Adafruit_GFX_setCursor(0,16);
 		sprintf(display_text_buffer,"Log inactive");
-		Adafruit_GFX_print(display_text_buffer);
+		Adafruit_GFX_print(display_text_buffer, 0, 16);
 		update_display = true;
 #endif
 		// Clear log messages for delta processing
@@ -2134,9 +2128,8 @@ void log_file_start()
 		++lfs_file_count;
 		display_file_count();
 #if HAS_DISPLAY
-		Adafruit_GFX_setCursor(0,16);
 		sprintf(display_text_buffer,"Log active  ");
-		Adafruit_GFX_print(display_text_buffer);
+		Adafruit_GFX_print(display_text_buffer, 0, 16);
 		update_display = true;
 #endif
 		// Write header data
@@ -2207,8 +2200,7 @@ void littlefs_init()
 		NRF_LOG_WARNING("LittleFS format (%d) and mount (%d) completed", lfs_format_response, lfs_mount_response);
 		user_cfg_set(false);
 #if HAS_DISPLAY
-		Adafruit_GFX_setCursor(45,0);
-		Adafruit_GFX_print("*F");
+		Adafruit_GFX_print("*F", 45, 0);
 		SSD1306_display();
 #endif
 		melody_play(MELODY_GOTCHI_FAULT, true); // Play robogotchi fault, interrupt
@@ -2283,9 +2275,8 @@ void littlefs_init()
 
 #if HAS_DISPLAY
 	display_file_count();
-	Adafruit_GFX_setCursor(0,16);
 	sprintf(display_text_buffer,"Log inactive");
-	Adafruit_GFX_print(display_text_buffer);
+	Adafruit_GFX_print(display_text_buffer, 0, 16);
 	update_display = true;
 #endif
 }
@@ -2359,8 +2350,7 @@ void process_user_input()
 		sd_ble_gap_adv_stop(m_advertising.adv_handle);
 		advertising_start(true);
 		// Notify user
-		Adafruit_GFX_setCursor(64, 0);
-		Adafruit_GFX_print("CLEARD");
+		Adafruit_GFX_print("CLEARD", 64, 0);
 		update_display = true;
 	}
 	// If user pressed button for less than 5 seconds display the PIN code
@@ -2370,14 +2360,12 @@ void process_user_input()
 		if (is_pin_displayed)
 		{
 			is_pin_displayed = false;
-			Adafruit_GFX_setCursor(64, 0);
-			Adafruit_GFX_print("      ");
+			Adafruit_GFX_print("      ", 64, 0);
 		}
 		else
 		{
 			is_pin_displayed = true;
-			Adafruit_GFX_setCursor(64, 0);
-			Adafruit_GFX_print(ble_pin);
+			Adafruit_GFX_print(ble_pin, 64, 0);
 		}
 
 		update_display = true;
@@ -2433,7 +2421,7 @@ int main(void) {
 	char freetitle[] = "FreeSK8";
 	Adafruit_GFX_setTextSize(1);
 	Adafruit_GFX_setTextColor(1,0);
-	Adafruit_GFX_print(freetitle);
+	Adafruit_GFX_print(freetitle, 0, 0);
 	SSD1306_display();
 
 	NRF_LOG_INFO("OLED Initialized");
@@ -2456,8 +2444,7 @@ int main(void) {
 	NRF_LOG_FLUSH();
 
 #if HAS_DISPLAY
-	Adafruit_GFX_setCursor(0,8);
-	Adafruit_GFX_print("RTC OK");
+	Adafruit_GFX_print("RTC OK", 0, 8);
 	SSD1306_display();
 
 	if(isButtonPressed)

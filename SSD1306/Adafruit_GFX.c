@@ -356,12 +356,19 @@ void Adafruit_GFX_drawBitmap(int16_t x, int16_t y,
   }
 }
 
-void Adafruit_GFX_print(char * buffer) {
+static bool _updating_display_buffer = false;
+void Adafruit_GFX_print(char * buffer, int16_t x, int16_t y) {
+  if (_updating_display_buffer) {
+    return;
+  }
+  _updating_display_buffer = true;
+  Adafruit_GFX_setCursor(x,y);
   int index = 0;
   while( buffer[index] != 0 )
 	{
 		Adafruit_GFX_write((uint8_t)buffer[index++]);
 	}
+  _updating_display_buffer = false;
 }
 
 void Adafruit_GFX_write(uint8_t c) {
