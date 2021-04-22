@@ -5068,7 +5068,7 @@
 
 
 #ifndef QSPI_CONFIG_SCK_DELAY
-#define QSPI_CONFIG_SCK_DELAY 1
+#define QSPI_CONFIG_SCK_DELAY 255
 #endif
 
 // <o> QSPI_CONFIG_XIP_OFFSET - Address offset in the external memory for Execute in Place operation. 
@@ -5105,7 +5105,7 @@
 // <1=> 32bit 
 
 #ifndef QSPI_CONFIG_ADDRMODE
-#define QSPI_CONFIG_ADDRMODE 0
+#define QSPI_CONFIG_ADDRMODE 1
 #endif
 
 // <o> QSPI_CONFIG_MODE  - SPI mode.
@@ -5137,7 +5137,7 @@
 // <15=> 32MHz/16 
 
 #ifndef QSPI_CONFIG_FREQUENCY
-#define QSPI_CONFIG_FREQUENCY 3
+#define QSPI_CONFIG_FREQUENCY 15
 #endif
 
 // <s> QSPI_PIN_SCK - SCK pin value.
@@ -10103,7 +10103,7 @@
 // <4=> Debug 
 
 #ifndef NRF_SDH_BLE_LOG_LEVEL
-#define NRF_SDH_BLE_LOG_LEVEL 4
+#define NRF_SDH_BLE_LOG_LEVEL 3
 #endif
 
 // <o> NRF_SDH_BLE_INFO_COLOR  - ANSI escape code prefix.
