@@ -29,7 +29,7 @@ extern volatile bool update_rtc;
 extern volatile bool log_file_active;
 
 static lfs_file_t file_command_interface;
-static uint8_t lfs_file_buf[256]; // Must be cache size
+static uint8_t lfs_file_buf[4096]; // Must be cache size
 static struct lfs_file_config lfs_file_config;
 static lfs_dir_t directory;
 static int32_t bytes_sent = -1; //file.ctz.size;
