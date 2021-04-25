@@ -2069,6 +2069,11 @@ int log_file_stop()
 	{
 		log_file_active = false;
 
+		// Ensure no data is written after file closure
+		write_gps_now = false;
+		write_gps_delta_now = false;
+		write_time_sync_now = false;
+
 #if HAS_DISPLAY
 		sprintf(display_text_buffer,"Log inactive");
 		Adafruit_GFX_print(display_text_buffer, 0, 16);
