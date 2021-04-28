@@ -123,8 +123,8 @@ SRC_FILES += \
   $(SDK_ROOT)/integration/nrfx/legacy/nrf_drv_ppi.c \
   $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_ppi.c \
   $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_qspi.c \
-  littlefs/lfs.c \
-  littlefs/lfs_util.c \
+  littlefs-2.4.0/lfs.c \
+  littlefs-2.4.0/lfs_util.c \
   ble_fus.c \
   rtc.c \
   uart_gps/gps_uart_fifo.c \
@@ -285,7 +285,7 @@ INC_FOLDERS += \
   . \
   sdk_mod \
   SSD1306 \
-  littlefs/ \
+  littlefs-2.4.0/ \
   uart_gps \
   lwgps/src/include/ \
   $(SDK_ROOT)/components/ble/nrf_ble_gq/ \

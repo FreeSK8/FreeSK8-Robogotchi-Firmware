@@ -55,12 +55,12 @@ typedef struct {
 	int16_t duty_cycle; // Div/1000
 	int16_t motor_current; // Div/10
 	int16_t battery_current; // Div/10
-	uint16_t watt_hours; // Div/100
+	uint16_t not_used2; //NOTE: padding
 
 	uint16_t watt_hours_regen; // Div/100
 	uint8_t fault;
 	uint8_t not_used; //NOTE: padding
-	uint32_t not_used2;  //NOTE: padding
+	uint32_t watt_hours; // Div/100
 
 	int32_t e_rpm;
 	uint32_t e_distance;

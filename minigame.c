@@ -183,8 +183,7 @@ void play_game(){
 
 		// score
 		sprintf(text,"%d",d);
-		Adafruit_GFX_setCursor(100, 0);
-		Adafruit_GFX_print(text);
+		Adafruit_GFX_print(text, 100, 0);
 		
 		// parallax clouds
 		Adafruit_GFX_drawBitmap(128 -(d%128),cloud_1_y,cloud_1,24,7,WHITE);

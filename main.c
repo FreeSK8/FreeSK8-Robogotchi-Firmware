@@ -123,19 +123,23 @@ void i2c_oled_comm_handle(uint8_t hdl_address, uint8_t *hdl_buffer, size_t hdl_b
 #endif
 
 ////////////////////////////////////////
-// Time tracking
+// Time/Event tracking
 ////////////////////////////////////////
 #include "rtc.h"
 volatile bool update_rtc = false; // Set to true to trigger I2C communication with RTC module
 volatile bool rtc_time_has_sync = false; // Set to true when the RTC has been set by GPS or Mobile app
 static struct tm * tmTime;
 static time_t currentTime;
+static time_t lastSyncTime;
 static char datetimestring[ 64 ] = { 0 };
 volatile bool log_file_active = false;
 static volatile bool write_logdata_now = false;
 static volatile bool gps_signal_locked = false;
 static time_t time_esc_last_responded; // For triggering TX and RX pin swapping
 static time_t time_gps_last_responded; // For detecting stale data
+volatile bool write_gps_now = false;
+volatile bool write_gps_delta_now = false;
+volatile bool write_time_sync_now = false;
 
 void update_time(int syear, int smonth, int sday, int shour, int sminute, int ssecond)
 {
@@ -412,10 +416,10 @@ int qspi_sync(const struct lfs_config *c)
 uint16_t lfs_file_count = 0;
 static lfs_t lfs;
 static lfs_file_t file;
-static uint8_t lfs_read_buf[256]; // Must be cache_size
-static uint8_t lfs_prog_buf[256]; // Must be cache_size
-static uint8_t lfs_lookahead_buf[16];	// 128/8=16
-static uint8_t lfs_file_buf[256]; // Must be cache size
+static uint8_t lfs_read_buf[4096]; // Must be cache_size
+static uint8_t lfs_prog_buf[4096]; // Must be cache_size
+static uint8_t lfs_lookahead_buf[4096];	// 128/8=16
+static uint8_t lfs_file_buf[4096]; // Must be cache size
 static struct lfs_file_config lfs_file_config;
 
 // configuration of the filesystem is provided by this struct
@@ -431,8 +435,8 @@ const struct lfs_config cfg = {
     .prog_size = 4,
     .block_size = 4096,
     .block_count = 8192, //4096 bytes/block @ 256Mbit (33554432 bytes) = 8192 blocks
-    .cache_size = 256,
-    .lookahead_size = 16,
+    .cache_size = 4096,
+    .lookahead_size = 4096,
     .block_cycles = 500,
 
 	.read_buffer = lfs_read_buf,
@@ -511,9 +515,8 @@ uint8_t lfs_free_space_check(void)
 	NRF_LOG_FLUSH();
 
 #if HAS_DISPLAY
-	Adafruit_GFX_setCursor(88,16);
 	snprintf(display_text_buffer,4,"%02d%%", lfs_percent_free);
-	Adafruit_GFX_print(display_text_buffer);
+	Adafruit_GFX_print(display_text_buffer, 88, 16);
 	update_display = true;
 #endif
 
@@ -808,10 +811,11 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                              p_evt->params.conn_sec_succeeded.procedure);
 				is_connection_secure = true;
 				melody_play(MELODY_BLE_SUCCESS, true); // Play BLE Success sound
+#if HAS_DISPLAY
 				// Notify user connection successful
-				Adafruit_GFX_setCursor(64, 0);
-				Adafruit_GFX_print("BLE OK");
+				Adafruit_GFX_print("BLE OK", 64, 0);
 				update_display = true;
+#endif
             }
             else
             {
@@ -828,8 +832,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
         case PM_EVT_CONN_SEC_FAILED:
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
 			// Notify user connection failed
-			Adafruit_GFX_setCursor(64, 0);
-			Adafruit_GFX_print("BLEPIN");
+			Adafruit_GFX_print("BLEPIN", 64, 0);
 			update_display = true;
 			melody_play(MELODY_BLE_FAIL, false); // Play BLE Failed sound. Do not interrupt (may happen repeatedly)
             break;
@@ -1074,6 +1077,11 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
 	case BLE_GAP_EVT_DISCONNECTED:
 		nrf_gpio_pin_clear(LED_PIN);
 		is_connection_secure = false;
+#if HAS_DISPLAY
+		// Notify user connection successful
+		Adafruit_GFX_print("      ", 64, 0);
+		update_display = true;
+#endif
 		NRF_LOG_INFO("Disconnected");
 		m_conn_handle = BLE_CONN_HANDLE_INVALID;
 		// Check if the last connected peer had not used MITM, if so, delete its bond information.
@@ -1241,6 +1249,18 @@ enum {
 #define PIN_STATES 3
 static void uart_swap_pins(void) {
 	static int pin_swap_state = PIN_STATE_DEFAULT;
+
+	app_uart_flush();
+	packet_reset(PACKET_VESC);
+
+	m_uart_comm_params.rx_pin_no	= UART_RX;
+	m_uart_comm_params.tx_pin_no	= UART_TX;
+	m_uart_comm_params.rts_pin_no   = 0;
+	m_uart_comm_params.cts_pin_no   = 0;
+	m_uart_comm_params.flow_control = APP_UART_FLOW_CONTROL_DISABLED;
+	m_uart_comm_params.use_parity   = false;
+	m_uart_comm_params.baud_rate	= NRF_UARTE_BAUDRATE_115200;
+
 	app_uart_close();
 
 	if (++pin_swap_state == PIN_STATES) {
@@ -1350,9 +1370,9 @@ static void process_packet_ble(unsigned char *data, unsigned int len) {
 		return;
 	}
 
-	CRITICAL_REGION_ENTER();
+	//TODO: This is old code. Also not SD aware. Remove? CRITICAL_REGION_ENTER();
 	packet_send_packet(data, len, PACKET_VESC);
-	CRITICAL_REGION_EXIT();
+	//TODO: This is old code. Also not SD aware. Remove? CRITICAL_REGION_EXIT();
 }
 
 void update_status_packet(char * buffer);
@@ -1546,9 +1566,8 @@ void process_packet_vesc(unsigned char *data, unsigned int len) {
 		++esc_rx_cnt;
 #if HAS_DISPLAY
 		// Update fault code count on display
-		Adafruit_GFX_setCursor(106,16);
 		sprintf(display_text_buffer,"F%02d", recent_fault_index);
-		Adafruit_GFX_print(display_text_buffer);
+		Adafruit_GFX_print(display_text_buffer, 106, 16);
 
 		// Move dot each time we process an ESC VALUES packet
 		if (esc_rx_cnt % 2 == 0) {
@@ -1601,6 +1620,35 @@ void process_packet_vesc(unsigned char *data, unsigned int len) {
 			packet_send_packet(data, len, PACKET_BLE);
 		}
 	}
+
+	// Sync filesystem contents every 60 seconds
+	if (log_file_active && currentTime % 60 == 0 && currentTime != lastSyncTime)
+	{
+		lastSyncTime = currentTime;
+		int sync_result = lfs_file_sync(&lfs, &file);
+		NRF_LOG_INFO("Sync result: %d", sync_result);
+		NRF_LOG_FLUSH();
+		if (sync_result < 0)
+		{
+			APP_ERROR_CHECK(sync_result);
+		}
+
+		// Check for free space after committing data to storage
+		if (lfs_free_space_check() < 10) //TODO: define percentage free limit
+		{
+			// Check if user wants to erase old files automatically
+			if (gotchi_cfg_user.log_auto_erase_when_full == 1)
+			{
+				//TODO: call method to erase oldest file until free space is happy
+				log_file_stop();
+			}
+			else
+			{
+				// Stop logging to prevent corruption
+				log_file_stop();
+			}
+		}
+	}
 }
 
 void ble_printf(const char* format, ...) {
@@ -1641,11 +1689,11 @@ static void packet_timer_handler(void *p_context) {
 	(void)p_context;
 	packet_timerfunc();
 
-	CRITICAL_REGION_ENTER();
+	//TODO: This is old code. Also not SD aware. Remove? CRITICAL_REGION_ENTER();
 	if (m_other_comm_disable_time > 0) {
 		m_other_comm_disable_time--;
 	}
-	CRITICAL_REGION_EXIT();
+	//TODO: This is old code. Also not SD aware. Remove? CRITICAL_REGION_EXIT();
 }
 
 static void logging_timer_handler(void *p_context) {
@@ -1664,11 +1712,12 @@ static void logging_timer_handler(void *p_context) {
 		--melody_snooze_seconds;
 	}
 
+#if HAS_DISPLAY
 	// Write GPS status to display
-	Adafruit_GFX_setCursor(64,8);
 	snprintf(gps_status, sizeof(gps_status), "GPS %02d S%01d%01d", hgps.seconds, hgps.is_valid, hgps.fix);
-	Adafruit_GFX_print(gps_status);
+	Adafruit_GFX_print(gps_status, 64, 8);
 	update_display = true;
+#endif
 
 	// If logging is active and GPS is valid and fixed log GPS data
 	if (log_file_active && hgps.is_valid && hgps.fix > 0)
@@ -1693,15 +1742,7 @@ static void logging_timer_handler(void *p_context) {
 			log_message_gps.latitude = hgps.latitude * 100000;
 			log_message_gps.longitude = hgps.longitude * 100000;
 
-			// Write out full GPS message
-			size_t bytes_written = 0;
-			char start[3] = {PACKET_START, GPS, sizeof(log_message_gps)};
-			char end[1] = {PACKET_END};
-			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
-			bytes_written += lfs_file_write(&lfs, &file, &log_message_gps, sizeof(log_message_gps));
-			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
-			//NRF_LOG_INFO("GPS Bytes Written: %ld", bytes_written);
-			//NRF_LOG_FLUSH();
+			write_gps_now = true;
 		}
 		// We can write a GPS Delta message!
 		else
@@ -1723,15 +1764,7 @@ static void logging_timer_handler(void *p_context) {
 			log_message_gps.latitude = hgps.latitude * 100000;
 			log_message_gps.longitude = hgps.longitude * 100000;
 
-			// Write out GPS DELTA message
-			size_t bytes_written = 0;
-			char start[3] = {PACKET_START, GPS_DELTA, sizeof(log_message_gps_delta)};
-			char end[1] = {PACKET_END};
-			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
-			bytes_written += lfs_file_write(&lfs, &file, &log_message_gps_delta, sizeof(log_message_gps_delta));
-			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
-			//NRF_LOG_INFO("GPS DELTA Bytes Written: %ld", bytes_written);
-			//NRF_LOG_FLUSH();
+			write_gps_delta_now = true;
 		}
 	}
 
@@ -1747,29 +1780,7 @@ static void logging_timer_handler(void *p_context) {
 		melody_play(MELODY_GPS_LOCK, false); // Play GPS locked melody, do not interrupt
 	}
 
-	// Sync filesystem contents every 60 seconds
-	if (log_file_active && currentTime % 60 == 0)
-	{
-		lfs_file_sync(&lfs, &file);
-
-		// Check for free space after committing data to storage
-		if (lfs_free_space_check() < 10) //TODO: define percentage free limit
-		{
-			// Check if user wants to erase old files automatically
-			if (gotchi_cfg_user.log_auto_erase_when_full == 1)
-			{
-				//TODO: call method to erase oldest file until free space is happy
-				log_file_stop();
-			}
-			else
-			{
-				// Stop logging to prevent corruption
-				log_file_stop();
-			}
-		}
-	}
-
-	//TODO: Sync GPS time - this works but is UTC and we've made no commitment to timezones
+	//Sync GPS time - Robogotchi <3 UTC time
 	if (!rtc_time_has_sync && gps_signal_locked && hgps.seconds != 247 && hgps.seconds != 0)
 	{
 		//strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
@@ -1798,15 +1809,7 @@ static void logging_timer_handler(void *p_context) {
 			log_message_freesk8.event_type = TIME_SYNC;
 			log_message_freesk8.event_data = newTimeSeconds - currentTime;
 
-			// Write out FREESK8 TIME_SYNC event
-			size_t bytes_written = 0;
-			char start[3] = {PACKET_START, FREESK8, sizeof(log_message_freesk8)};
-			char end[1] = {PACKET_END};
-			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
-			bytes_written += lfs_file_write(&lfs, &file, &log_message_freesk8, sizeof(log_message_freesk8));
-			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
-			NRF_LOG_INFO("TIME_SYNC Bytes Written: %ld", bytes_written);
-			NRF_LOG_FLUSH();
+			write_time_sync_now = true;
 		}
 
 		// Update time in memory
@@ -1939,9 +1942,8 @@ void display_file_count(void)
 	NRF_LOG_INFO("display_file_count");
 	NRF_LOG_FLUSH();
 #if HAS_DISPLAY
-	Adafruit_GFX_setCursor(0,8);
 	sprintf(display_text_buffer,"%d files   ", lfs_file_count);
-	Adafruit_GFX_print(display_text_buffer);
+	Adafruit_GFX_print(display_text_buffer, 0, 8);
 	update_display = true;
 #endif
 }
@@ -1983,7 +1985,7 @@ static ret_code_t twi_master_init(void)
 #define QSPI_STD_CMD_WRSR   0x01
 #define QSPI_STD_CMD_RSTEN  0x66
 #define QSPI_STD_CMD_RST	0x99
-
+#define QSPI_CMD_EN4B       0xB7 // Enable 32-bit addressing
 static void configure_memory()
 {
 	uint8_t temporary = 0x40;
@@ -2010,6 +2012,12 @@ static void configure_memory()
 	cinstr_cfg.opcode = QSPI_STD_CMD_WRSR;
 	cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_2B;
 	err_code = nrf_drv_qspi_cinstr_xfer(&cinstr_cfg, &temporary, NULL);
+	APP_ERROR_CHECK(err_code);
+
+	// Enter 4-Byte mode (32-bit)
+	cinstr_cfg.opcode = QSPI_CMD_EN4B;
+	cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_1B;
+	err_code = nrf_drv_qspi_cinstr_xfer(&cinstr_cfg, NULL, NULL);
 	APP_ERROR_CHECK(err_code);
 
 	NRF_LOG_INFO("QSPI Memory Configured");
@@ -2042,9 +2050,8 @@ void qspi_init()
 		NRF_LOG_INFO("nrf_drv_qspi_init response %d", err_code);
 		NRF_LOG_FLUSH();
 #if HAS_DISPLAY
-		Adafruit_GFX_setCursor(0,16);
 		sprintf(display_text_buffer,"QSPI Init Failed");
-		Adafruit_GFX_print(display_text_buffer);
+		Adafruit_GFX_print(display_text_buffer, 0, 16);
 		SSD1306_display();
 #endif
 		while(1);
@@ -2062,10 +2069,14 @@ int log_file_stop()
 	{
 		log_file_active = false;
 
+		// Ensure no data is written after file closure
+		write_gps_now = false;
+		write_gps_delta_now = false;
+		write_time_sync_now = false;
+
 #if HAS_DISPLAY
-		Adafruit_GFX_setCursor(0,16);
 		sprintf(display_text_buffer,"Log inactive");
-		Adafruit_GFX_print(display_text_buffer);
+		Adafruit_GFX_print(display_text_buffer, 0, 16);
 		update_display = true;
 #endif
 		// Clear log messages for delta processing
@@ -2134,9 +2145,8 @@ void log_file_start()
 		++lfs_file_count;
 		display_file_count();
 #if HAS_DISPLAY
-		Adafruit_GFX_setCursor(0,16);
 		sprintf(display_text_buffer,"Log active  ");
-		Adafruit_GFX_print(display_text_buffer);
+		Adafruit_GFX_print(display_text_buffer, 0, 16);
 		update_display = true;
 #endif
 		// Write header data
@@ -2194,12 +2204,17 @@ void littlefs_init()
 	NRF_LOG_INFO("LittleFS initializing");
     NRF_LOG_FLUSH();
 
+	// Prepare the static file buffer
+	memset(&lfs_file_config, 0, sizeof(struct lfs_file_config));
+	lfs_file_config.buffer = lfs_file_buf;
+	lfs_file_config.attr_count = 0;
+
 	// mount the filesystem
     int err = lfs_mount(&lfs, &cfg);
 
     // reformat if we can't mount the filesystem
     // this should only happen on the first boot
-	if (err) {
+	if (err < 0) {
         NRF_LOG_WARNING("LittleFS needs to format the storage");
         NRF_LOG_FLUSH();
         int lfs_format_response = lfs_format(&lfs, &cfg);
@@ -2207,19 +2222,13 @@ void littlefs_init()
 		NRF_LOG_WARNING("LittleFS format (%d) and mount (%d) completed", lfs_format_response, lfs_mount_response);
 		user_cfg_set(false);
 #if HAS_DISPLAY
-		Adafruit_GFX_setCursor(45,0);
-		Adafruit_GFX_print("*F");
+		Adafruit_GFX_print("*F", 45, 0);
 		SSD1306_display();
 #endif
 		melody_play(MELODY_GOTCHI_FAULT, true); // Play robogotchi fault, interrupt
     }
-    NRF_LOG_INFO("LittleFS initialized");
+    NRF_LOG_INFO("LittleFS initialized. Result: (%d)", err);
     NRF_LOG_FLUSH();
-
-	// Prepare the static file buffer
-	memset(&lfs_file_config, 0, sizeof(struct lfs_file_config));
-	lfs_file_config.buffer = lfs_file_buf;
-	lfs_file_config.attr_count = 0;
 
     // read current count  
     lfs_file_opencfg(&lfs, &file, "boot_count", LFS_O_RDWR | LFS_O_CREAT, &lfs_file_config);
@@ -2283,9 +2292,8 @@ void littlefs_init()
 
 #if HAS_DISPLAY
 	display_file_count();
-	Adafruit_GFX_setCursor(0,16);
 	sprintf(display_text_buffer,"Log inactive");
-	Adafruit_GFX_print(display_text_buffer);
+	Adafruit_GFX_print(display_text_buffer, 0, 16);
 	update_display = true;
 #endif
 }
@@ -2359,8 +2367,7 @@ void process_user_input()
 		sd_ble_gap_adv_stop(m_advertising.adv_handle);
 		advertising_start(true);
 		// Notify user
-		Adafruit_GFX_setCursor(64, 0);
-		Adafruit_GFX_print("CLEARD");
+		Adafruit_GFX_print("CLEARD", 64, 0);
 		update_display = true;
 	}
 	// If user pressed button for less than 5 seconds display the PIN code
@@ -2370,14 +2377,12 @@ void process_user_input()
 		if (is_pin_displayed)
 		{
 			is_pin_displayed = false;
-			Adafruit_GFX_setCursor(64, 0);
-			Adafruit_GFX_print("      ");
+			Adafruit_GFX_print("      ", 64, 0);
 		}
 		else
 		{
 			is_pin_displayed = true;
-			Adafruit_GFX_setCursor(64, 0);
-			Adafruit_GFX_print(ble_pin);
+			Adafruit_GFX_print(ble_pin, 64, 0);
 		}
 
 		update_display = true;
@@ -2433,7 +2438,7 @@ int main(void) {
 	char freetitle[] = "FreeSK8";
 	Adafruit_GFX_setTextSize(1);
 	Adafruit_GFX_setTextColor(1,0);
-	Adafruit_GFX_print(freetitle);
+	Adafruit_GFX_print(freetitle, 0, 0);
 	SSD1306_display();
 
 	NRF_LOG_INFO("OLED Initialized");
@@ -2456,8 +2461,7 @@ int main(void) {
 	NRF_LOG_FLUSH();
 
 #if HAS_DISPLAY
-	Adafruit_GFX_setCursor(0,8);
-	Adafruit_GFX_print("RTC OK");
+	Adafruit_GFX_print("RTC OK", 0, 8);
 	SSD1306_display();
 
 	if(isButtonPressed)
@@ -2555,6 +2559,46 @@ int main(void) {
 		while (app_uart_get(&byte) == NRF_SUCCESS) {
 			time_esc_last_responded = currentTime;
 			packet_process_byte(byte, PACKET_VESC);
+		}
+
+		if (write_gps_now)
+		{
+			write_gps_now = false;
+			// Write out full GPS message
+			size_t bytes_written = 0;
+			char start[3] = {PACKET_START, GPS, sizeof(log_message_gps)};
+			char end[1] = {PACKET_END};
+			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+			bytes_written += lfs_file_write(&lfs, &file, &log_message_gps, sizeof(log_message_gps));
+			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+			NRF_LOG_INFO("GPS Bytes Written: %ld", bytes_written);
+			NRF_LOG_FLUSH();
+		}
+		if (write_gps_delta_now)
+		{
+			write_gps_delta_now = false;
+			// Write out GPS DELTA message
+			size_t bytes_written = 0;
+			char start[3] = {PACKET_START, GPS_DELTA, sizeof(log_message_gps_delta)};
+			char end[1] = {PACKET_END};
+			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+			bytes_written += lfs_file_write(&lfs, &file, &log_message_gps_delta, sizeof(log_message_gps_delta));
+			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+			NRF_LOG_INFO("GPS DELTA Bytes Written: %ld", bytes_written);
+			NRF_LOG_FLUSH();
+		}
+		if (write_time_sync_now)
+		{
+			write_time_sync_now = false;
+			// Write out FREESK8 TIME_SYNC event
+			size_t bytes_written = 0;
+			char start[3] = {PACKET_START, FREESK8, sizeof(log_message_freesk8)};
+			char end[1] = {PACKET_END};
+			bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+			bytes_written += lfs_file_write(&lfs, &file, &log_message_freesk8, sizeof(log_message_freesk8));
+			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+			NRF_LOG_INFO("TIME_SYNC Bytes Written: %ld", bytes_written);
+			NRF_LOG_FLUSH();
 		}
 
 		while (gps_uart_get(&byte) == NRF_SUCCESS) {

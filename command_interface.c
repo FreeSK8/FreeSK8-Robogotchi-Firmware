@@ -29,7 +29,7 @@ extern volatile bool update_rtc;
 extern volatile bool log_file_active;
 
 static lfs_file_t file_command_interface;
-static uint8_t lfs_file_buf[256]; // Must be cache size
+static uint8_t lfs_file_buf[4096]; // Must be cache size
 static struct lfs_file_config lfs_file_config;
 static lfs_dir_t directory;
 static int32_t bytes_sent = -1; //file.ctz.size;
@@ -241,7 +241,7 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.9.0,beta");
+            sprintf((char *)command_response_buffer, "version,0.9.1,beta");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)

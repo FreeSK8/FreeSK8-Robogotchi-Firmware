@@ -81,7 +81,7 @@ void Adafruit_GFX_drawBitmap(int16_t x, int16_t y,
 void Adafruit_GFX_drawChar(int16_t x, int16_t y, unsigned char c,
 	uint16_t color, uint16_t bg, uint8_t size);
 
-void Adafruit_GFX_print(char * buffer);
+void Adafruit_GFX_print(char * buffer, int16_t x, int16_t y);
 void Adafruit_GFX_write(uint8_t);
 
 void Adafruit_GFX_setCursor(int16_t x, int16_t y);
