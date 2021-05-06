@@ -1866,6 +1866,13 @@ static void logging_timer_handler(void *p_context) {
 static void telemetry_timer_handler(void *p_context) {
 	(void)p_context;
 
+	if (sync_in_progress)
+	{
+		NRF_LOG_INFO("Skipping telemetry");
+		NRF_LOG_FLUSH();
+		return;
+	}
+
 	// Set flag to write data when a response is received
 	write_logdata_now = true;
 
