@@ -185,6 +185,10 @@ void command_interface_process_byte(char incoming)
 
             NRF_LOG_INFO("filename %s", filename);
             NRF_LOG_FLUSH();
+            if (cat_in_progress)
+            {
+                lfs_file_close(m_lfs, &file_command_interface);
+            }
             if(lfs_file_opencfg(m_lfs, &file_command_interface, filename, LFS_O_RDONLY, &lfs_file_config) >= 0)
             {
                 sprintf((char *)command_response_buffer, "cat,%s", filename);
