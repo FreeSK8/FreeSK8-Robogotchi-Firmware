@@ -129,6 +129,7 @@ void i2c_oled_comm_handle(uint8_t hdl_address, uint8_t *hdl_buffer, size_t hdl_b
 volatile bool update_rtc = false; // Set to true to trigger I2C communication with RTC module
 volatile bool rtc_time_has_sync = false; // Set to true when the RTC has been set by GPS or Mobile app
 static struct tm * tmTime;
+struct tm gpsTime; // Time received from GPS
 static time_t currentTime; // Current time of the Robogotchi
 static time_t timeSyncTime; // New time from GPS to be set during timeSync event
 static time_t fileSystemSyncTime; // The last time the filesystem performed a sync to QSPI
@@ -1810,7 +1811,6 @@ static void logging_timer_handler(void *p_context) {
 		//NRF_LOG_FLUSH();
 
 		// Convert the time from the GPS
-		struct tm gpsTime;
 		gpsTime.tm_year = 2000 + hgps.year - 1900;
 		gpsTime.tm_mon = hgps.month - 1;
 		gpsTime.tm_mday = hgps.date;
@@ -1819,10 +1819,6 @@ static void logging_timer_handler(void *p_context) {
 		gpsTime.tm_sec = hgps.seconds;
 		// Give it to me in time_t
 		timeSyncTime = mktime(&gpsTime);
-
-		//strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
-		//NRF_LOG_INFO("Setting time from GPS; time now %s or %ld", datetimestring, timeSyncTime);
-		//NRF_LOG_FLUSH();
 
 		// Store time sync difference in seconds if we are currently logging
 		if (log_file_active)
@@ -1872,13 +1868,6 @@ static void logging_timer_handler(void *p_context) {
 
 static void telemetry_timer_handler(void *p_context) {
 	(void)p_context;
-
-	if (sync_in_progress)
-	{
-		NRF_LOG_INFO("Skipping telemetry");
-		NRF_LOG_FLUSH();
-		return;
-	}
 
 	// Set flag to write data when a response is received
 	write_logdata_now = true;
