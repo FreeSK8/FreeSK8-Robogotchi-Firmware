@@ -152,6 +152,9 @@ void update_time(int syear, int smonth, int sday, int shour, int sminute, int ss
 	tmTime->tm_min = sminute;
 	tmTime->tm_sec = ssecond;
 	currentTime = mktime(tmTime);
+
+	time_esc_last_responded = currentTime;
+	time_gps_last_responded = currentTime;
 }
 
 ////////////////////////////////////////
