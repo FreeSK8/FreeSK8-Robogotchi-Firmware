@@ -415,7 +415,7 @@ void command_interface_process_byte(char incoming)
             // Return robogotchi unique ID
             NRF_LOG_INFO("robogotchi ID command received");
             NRF_LOG_FLUSH();
-            sprintf((char *)command_response_buffer, "roboid,%02x%02x", NRF_FICR->DEVICEID[0], NRF_FICR->DEVICEID[1]);
+            sprintf((char *)command_response_buffer, "roboid,%02lx%02lx", NRF_FICR->DEVICEID[0], NRF_FICR->DEVICEID[1]);
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
 
