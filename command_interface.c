@@ -28,6 +28,7 @@ extern volatile bool update_rtc;
 
 extern volatile bool log_file_active;
 
+static bool cat_in_progress = false;
 static lfs_file_t file_command_interface;
 static uint8_t lfs_file_buf[4096]; // Must be cache size
 static struct lfs_file_config lfs_file_config;
@@ -77,7 +78,15 @@ void command_interface_process_byte(char incoming)
         {
             NRF_LOG_INFO("ACK handler >%s<", command_input_buffer);
             NRF_LOG_FLUSH();
-            command_interface_continue_transfer( command_input_buffer );
+            if (sync_in_progress)
+            {
+                command_interface_continue_transfer( command_input_buffer );
+            }
+            else
+            {
+                NRF_LOG_WARNING("ACK received while !sync_in_progress");
+                NRF_LOG_FLUSH();
+            }
         }
         else if( strncmp(&command_input_buffer[strlen(command_input_buffer)-4], "nack", 4) == 0)
         {
@@ -85,14 +94,22 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_FLUSH();
             if (sync_in_progress)
             {
-                // For a cat command we want to seek to the byte the client last received
-                if(strncmp(command_input_buffer, "cat", 3) == 0)
+                if (cat_in_progress)
                 {
-                    // Set the file position to what we've received on the client side
-                    lfs_file_seek(m_lfs, &file_command_interface, atoi(command_input_buffer+4), LFS_SEEK_SET);
+                    // For a cat command we want to seek to the byte the client last received
+                    if(strncmp(command_input_buffer, "cat", 3) == 0)
+                    {
+                        // Set the file position to what we've received on the client side
+                        lfs_file_seek(m_lfs, &file_command_interface, atoi(command_input_buffer+4), LFS_SEEK_SET);
+                    }
                 }
                 // Continue to send data to the client
                 command_interface_continue_transfer(command_input_buffer);
+            }
+            else
+            {
+                NRF_LOG_WARNING("NACK received while !sync_in_progress");
+                NRF_LOG_FLUSH();
             }
         }
         else if(strncmp(command_input_buffer, "log", 3) == 0)
@@ -184,12 +201,17 @@ void command_interface_process_byte(char incoming)
 
             NRF_LOG_INFO("filename %s", filename);
             NRF_LOG_FLUSH();
+            if (cat_in_progress)
+            {
+                lfs_file_close(m_lfs, &file_command_interface);
+            }
             if(lfs_file_opencfg(m_lfs, &file_command_interface, filename, LFS_O_RDONLY, &lfs_file_config) >= 0)
             {
+                lfs_file_seek(m_lfs, &file_command_interface, 0, LFS_SEEK_SET); //TODO: Testing rewind on open, necessary?
                 sprintf((char *)command_response_buffer, "cat,%s", filename);
                 m_ble_tx_logbuffer(command_response_buffer, (size_t)strlen((const char *)command_response_buffer));
                 bytes_sent = 0;
-                sync_in_progress = true;
+                cat_in_progress = true;
             }
         }
         else if(strncmp(command_input_buffer, "rm ", 3) == 0 && strlen(command_input_buffer) > 3)
@@ -241,7 +263,7 @@ void command_interface_process_byte(char incoming)
         }
         else if(strncmp(command_input_buffer, "version", 7) == 0)
         {
-            sprintf((char *)command_response_buffer, "version,0.9.1,beta");
+            sprintf((char *)command_response_buffer, "version,0.10.0,beta");
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
         else if(strncmp(command_input_buffer, "getcfg", 6) == 0)
@@ -346,6 +368,21 @@ void command_interface_process_byte(char incoming)
 
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
+        else if(strncmp(command_input_buffer, "syncstart", 9) == 0)
+        {
+            // Sync process is starting
+            NRF_LOG_INFO("syncstart command received");
+            NRF_LOG_FLUSH();
+            if (!sync_in_progress)
+            {
+                sync_in_progress = true;
+                NRF_LOG_INFO("sync_in_progress is now true");
+                NRF_LOG_FLUSH();
+            } else {
+                NRF_LOG_INFO("sync_in_progress was already true");
+                NRF_LOG_FLUSH();
+            }
+        }
         else if(strncmp(command_input_buffer, "syncstop", 8) == 0)
         {
             // Sync process was aborted by the user
@@ -353,13 +390,17 @@ void command_interface_process_byte(char incoming)
             NRF_LOG_FLUSH();
             if (sync_in_progress)
             {
-                int close_result = lfs_file_close(m_lfs, &file_command_interface);
-                NRF_LOG_INFO("lfs close result: %d", close_result);
-                NRF_LOG_FLUSH();
                 sync_in_progress = false;
             } else {
                 NRF_LOG_INFO("sync_in_progress was false");
                 NRF_LOG_FLUSH();
+            }
+            if (cat_in_progress)
+            {
+                int close_result = lfs_file_close(m_lfs, &file_command_interface);
+                NRF_LOG_INFO("lfs close result: %d", close_result);
+                NRF_LOG_FLUSH();
+                cat_in_progress = false;
             }
         }
         else if(strncmp(command_input_buffer, "snooze,", 7) == 0)
@@ -374,7 +415,7 @@ void command_interface_process_byte(char incoming)
             // Return robogotchi unique ID
             NRF_LOG_INFO("robogotchi ID command received");
             NRF_LOG_FLUSH();
-            sprintf((char *)command_response_buffer, "roboid,%02x%02x", NRF_FICR->DEVICEID[0], NRF_FICR->DEVICEID[1]);
+            sprintf((char *)command_response_buffer, "roboid,%02lx%02lx", NRF_FICR->DEVICEID[0], NRF_FICR->DEVICEID[1]);
             m_ble_tx_logbuffer(command_response_buffer, strlen((const char *)command_response_buffer));
         }
 
@@ -424,6 +465,12 @@ void command_interface_continue_transfer(char* command)
     }
     else if(strncmp(command_input_buffer, "cat", 3) == 0)
     {
+        if (!cat_in_progress)
+        {
+            NRF_LOG_WARNING("CAT ACK/NACK received while !cat_in_progress");
+            NRF_LOG_FLUSH();
+            return;
+        }
         NRF_LOG_INFO("command_interface_continue_transfer(TRANSFER_MODE_CAT)");
         NRF_LOG_FLUSH();
 
@@ -431,15 +478,17 @@ void command_interface_continue_transfer(char* command)
         {
             m_ble_tx_logbuffer((unsigned char *)"cat,complete", strlen("cat,complete"));
 
-            NRF_LOG_INFO("finished cat");
+            NRF_LOG_INFO("sending cat,complete");
             NRF_LOG_FLUSH();
 
+            //NOTE: Leaving file open in case the client needs to ACK/NACK
+            //NOTE: File will be closed upon request of the next file or syncstop
+            /*
             int close_result = lfs_file_close(m_lfs, &file_command_interface);
-
             NRF_LOG_INFO("cat close result: %d", close_result);
             NRF_LOG_FLUSH();
-
-            sync_in_progress = false;
+            cat_in_progress = false;
+            */
         }
         else if(bytes_sent < file_command_interface.ctz.size)
         {

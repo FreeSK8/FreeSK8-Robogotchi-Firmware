@@ -129,8 +129,10 @@ void i2c_oled_comm_handle(uint8_t hdl_address, uint8_t *hdl_buffer, size_t hdl_b
 volatile bool update_rtc = false; // Set to true to trigger I2C communication with RTC module
 volatile bool rtc_time_has_sync = false; // Set to true when the RTC has been set by GPS or Mobile app
 static struct tm * tmTime;
-static time_t currentTime;
-static time_t lastSyncTime;
+struct tm gpsTime; // Time received from GPS
+static time_t currentTime; // Current time of the Robogotchi
+static time_t timeSyncTime; // New time from GPS to be set during timeSync event
+static time_t fileSystemSyncTime; // The last time the filesystem performed a sync to QSPI
 static char datetimestring[ 64 ] = { 0 };
 volatile bool log_file_active = false;
 static volatile bool write_logdata_now = false;
@@ -150,6 +152,9 @@ void update_time(int syear, int smonth, int sday, int shour, int sminute, int ss
 	tmTime->tm_min = sminute;
 	tmTime->tm_sec = ssecond;
 	currentTime = mktime(tmTime);
+
+	time_esc_last_responded = currentTime;
+	time_gps_last_responded = currentTime;
 }
 
 ////////////////////////////////////////
@@ -1622,9 +1627,9 @@ void process_packet_vesc(unsigned char *data, unsigned int len) {
 	}
 
 	// Sync filesystem contents every 60 seconds
-	if (log_file_active && currentTime % 60 == 0 && currentTime != lastSyncTime)
+	if (log_file_active && currentTime % 60 == 0 && currentTime != fileSystemSyncTime)
 	{
-		lastSyncTime = currentTime;
+		fileSystemSyncTime = currentTime;
 		int sync_result = lfs_file_sync(&lfs, &file);
 		NRF_LOG_INFO("Sync result: %d", sync_result);
 		NRF_LOG_FLUSH();
@@ -1694,6 +1699,27 @@ static void packet_timer_handler(void *p_context) {
 		m_other_comm_disable_time--;
 	}
 	//TODO: This is old code. Also not SD aware. Remove? CRITICAL_REGION_EXIT();
+}
+
+static void finalize_time_sync()
+{
+	// Update time in memory
+	memcpy(tmTime, &gpsTime, sizeof(struct tm));
+	currentTime = timeSyncTime;
+
+	// Update time on RTC
+	update_rtc = true;
+
+	// Update internal state
+	log_message_gps.dt = 0; // Ensure non-delta is written next
+	log_message_esc.dt = 0; // Ensure non-delta is written next
+	time_esc_last_responded = currentTime;
+	time_gps_last_responded = currentTime;
+	lastTimeBoardMoved = currentTime;
+	strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
+
+	NRF_LOG_INFO("Time set from GPS %ld", currentTime);
+	NRF_LOG_FLUSH();
 }
 
 static void logging_timer_handler(void *p_context) {
@@ -1788,8 +1814,6 @@ static void logging_timer_handler(void *p_context) {
 		//NRF_LOG_FLUSH();
 
 		// Convert the time from the GPS
-		time_t newTimeSeconds;
-		struct tm gpsTime;
 		gpsTime.tm_year = 2000 + hgps.year - 1900;
 		gpsTime.tm_mon = hgps.month - 1;
 		gpsTime.tm_mday = hgps.date;
@@ -1797,38 +1821,20 @@ static void logging_timer_handler(void *p_context) {
 		gpsTime.tm_min = hgps.minutes;
 		gpsTime.tm_sec = hgps.seconds;
 		// Give it to me in time_t
-		newTimeSeconds = mktime(&gpsTime);
-
-		//strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
-		//NRF_LOG_INFO("Setting time from GPS; time now %s or %ld", datetimestring, newTimeSeconds);
-		//NRF_LOG_FLUSH();
+		timeSyncTime = mktime(&gpsTime);
 
 		// Store time sync difference in seconds if we are currently logging
 		if (log_file_active)
 		{
 			log_message_freesk8.event_type = TIME_SYNC;
-			log_message_freesk8.event_data = newTimeSeconds - currentTime;
+			log_message_freesk8.event_data = timeSyncTime - currentTime;
 
 			write_time_sync_now = true;
 		}
-
-		// Update time in memory
-		memcpy(tmTime, &gpsTime, sizeof(struct tm));
-		currentTime = newTimeSeconds;
-
-		// Update time on RTC
-		update_rtc = true;
-
-		// Update internal state
-		log_message_gps.dt = 0; // Ensure non-delta is written next
-		log_message_esc.dt = 0; // Ensure non-delta is written next
-		time_esc_last_responded = currentTime;
-		time_gps_last_responded = currentTime;
-		lastTimeBoardMoved = currentTime;
-		strftime(datetimestring, 64, "%Y-%m-%dT%H:%M:%S", tmTime);
-
-		NRF_LOG_INFO("Time set from GPS %ld", currentTime);
-		NRF_LOG_FLUSH();
+		else
+		{
+			finalize_time_sync();
+		}
 	}
 
 	// Check if the ESC has not responded in 1 second and try swapping the UART pin configuration
@@ -2548,6 +2554,8 @@ int main(void) {
 		// Monitor button press; Do not block for more than 25ms
 		process_user_input();
 
+		// Reset UART and packet on error
+		//TODO: m_uart_error is never set to true
 		if (m_uart_error) {
 			app_uart_close();
 			uart_init();
@@ -2555,12 +2563,14 @@ int main(void) {
 			m_uart_error = false;
 		}
 
+		// Read ESC data; Potentially writing log data
 		uint8_t byte;
 		while (app_uart_get(&byte) == NRF_SUCCESS) {
 			time_esc_last_responded = currentTime;
 			packet_process_byte(byte, PACKET_VESC);
 		}
 
+		// Check log file writing flags from 1Hz timer
 		if (write_gps_now)
 		{
 			write_gps_now = false;
@@ -2599,13 +2609,17 @@ int main(void) {
 			bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
 			NRF_LOG_INFO("TIME_SYNC Bytes Written: %ld", bytes_written);
 			NRF_LOG_FLUSH();
+
+			finalize_time_sync();
 		}
 
+		// Update GPS data
 		while (gps_uart_get(&byte) == NRF_SUCCESS) {
 			time_gps_last_responded = currentTime;
 			lwgps_process(&hgps, &byte, sizeof(byte));
 		}
 
+		// Update RTC
 		if (update_rtc) {
 			update_rtc = false;
 			rtc_set_time( tmTime->tm_year + 1900, tmTime->tm_mon + 1, tmTime->tm_mday, tmTime->tm_hour, tmTime->tm_min, tmTime->tm_sec );
