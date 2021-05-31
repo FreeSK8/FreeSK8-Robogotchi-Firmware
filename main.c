@@ -1753,8 +1753,8 @@ static void logging_timer_handler(void *p_context) {
 				// Or we have drifted too far from the last record we must write a full GPS message
 				(
 					currentTime - log_message_gps.dt > 255 ||
-					fabs(hgps.altitude) * 10 - log_message_gps.altitude > 127 ||
-					fabs(hgps.speed) * 10 - log_message_gps.speed > 127 ||
+					hgps.altitude * 10 - log_message_gps.altitude > 127 ||
+					hgps.speed * 10 - log_message_gps.speed > 127 ||
 					fabs(hgps.latitude) * 10000 - abs(log_message_gps.latitude) > 32767 ||
 					fabs(hgps.longitude) * 10000 - abs(log_message_gps.longitude) > 32767
 				)
@@ -1763,8 +1763,8 @@ static void logging_timer_handler(void *p_context) {
 			//TODO: duplicated code
 			log_message_gps.dt = currentTime;
 			log_message_gps.satellites = hgps.sats_in_view;
-			log_message_gps.altitude = fabs(hgps.altitude) * 10;
-			log_message_gps.speed = fabs(hgps.speed) * 10;
+			log_message_gps.altitude = hgps.altitude * 10;
+			log_message_gps.speed = hgps.speed * 10;
 			log_message_gps.latitude = hgps.latitude * 100000;
 			log_message_gps.longitude = hgps.longitude * 100000;
 
@@ -1776,8 +1776,8 @@ static void logging_timer_handler(void *p_context) {
 			// Update delta message
 			log_message_gps_delta.dt = currentTime - log_message_gps.dt;
 			log_message_gps_delta.satellites = hgps.sats_in_view - log_message_gps.satellites;
-			log_message_gps_delta.altitude = fabs(hgps.altitude) * 10 - log_message_gps.altitude;
-			log_message_gps_delta.speed = fabs(hgps.speed) * 10 - log_message_gps.speed;
+			log_message_gps_delta.altitude = (int16_t)(hgps.altitude * 10) - log_message_gps.altitude;
+			log_message_gps_delta.speed = (int16_t)(hgps.speed * 10) - log_message_gps.speed;
 			log_message_gps_delta.latitude = (int32_t)(hgps.latitude * 100000) - log_message_gps.latitude;
 			log_message_gps_delta.longitude = (int32_t)(hgps.longitude * 100000) - log_message_gps.longitude;
 
@@ -1785,8 +1785,8 @@ static void logging_timer_handler(void *p_context) {
 			//TODO: duplicated code
 			log_message_gps.dt = currentTime;
 			log_message_gps.satellites = hgps.sats_in_view;
-			log_message_gps.altitude = fabs(hgps.altitude) * 10;
-			log_message_gps.speed = fabs(hgps.speed) * 10;
+			log_message_gps.altitude = hgps.altitude * 10;
+			log_message_gps.speed = hgps.speed * 10;
 			log_message_gps.latitude = hgps.latitude * 100000;
 			log_message_gps.longitude = hgps.longitude * 100000;
 
