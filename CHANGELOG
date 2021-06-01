@@ -1,0 +1,92 @@
+v0.10.1
+
+* Converting NMEA RMC speed to kph
+* Fix GPS speed data conversion
+
+v0.10.0
+
+* Implement syncstart command
+* Improvements to the sync process
+* Finalizing GPS time sync when event is written
+* Updating time ESC/GPS responded with settime command
+
+v0.9.1
+
+* Fixed flash memory corruption issue
+* Changed LOG_ESC watt_hours to 32-bit value
+* Improved text printing method for display buffer
+* Updated file system library to latest version
+* Improvements made to support 50Hz logging
+* Other fixes and improvements
+
+v0.9.0
+
+* Support Robogotchi Xenith module 
+* Allow melodies to be temporarily disabled
+* Report latest priority alert reason
+* Report unique robogotchi ID
+* Connected display is now optional
+* Fix for automatic time syncronization
+* Other impovements
+
+v0.8.2
+
+* Switch to UTC time keeping (my bad)
+
+v0.8.1
+
+* Automatically perform GPS time synchronization
+* Compute unique GotchiNet registration code
+* Relocate minigame
+
+v0.7.3
+
+* Allow bluetooth repairing without clearing bonds
+
+v0.7.2
+
+* Fixes for mosfet and esc temperature delta processing
+* Guarding settime command if device is currently logging
+
+v0.7.1
+
+* Logging interval changes dynamically
+* Fix missing header data in log files
+* Disabled unused USB device
+
+v0.7.0
+
+* New logging file format
+* Updated melodies
+* Fix crash if nack is received outside sync
+
+v0.6.0
+
+* Adding fault packet processing
+* Expanded fault data structure
+* Button 2 will silence a melody
+* Using static buffers for filesystem
+
+v0.5.0
+
+* Adding NACK handler to resume a broken sync
+* Clear GPS data on disconnect without an active fix
+* Testing fix for steady tone
+
+v0.4.2
+
+* Monitor GPS data reception to notify on physical disconnect
+* Include GPS statistics with status packet
+* Removed transmission of unsolicited status packets
+* Intended for use FreeSK8 Mobile 0.7.0
+
+v0.4.1
+
+* Checking sync_in_progress flag to prevent logging and unwanted messages during sync
+* Checking sync_in_progress flag before attempting to close an unopened file
+* Fixes interruption of sync process if auto logging is triggered
+* Fixes hault condition in firmware
+
+v0.4.0
+
+* Inital beta release
