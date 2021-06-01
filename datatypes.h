@@ -93,8 +93,8 @@ typedef struct {
 	time_t dt;
 	uint8_t satellites;
 	//NOTE: 8 bit padding
-	uint16_t altitude; // Div/10
-	uint16_t speed; // Div/10
+	int16_t altitude; // Div/10
+	int16_t speed; // Div/10
 	//NOTE: 16 bit padding
 	int32_t latitude; // Div/100000
 	int32_t longitude; // Div/100000
