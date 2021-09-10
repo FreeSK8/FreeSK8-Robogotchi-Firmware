@@ -330,6 +330,7 @@ CFLAGS += -DAPP_TIMER_V2 -DAPP_TIMER_V2_RTC1_ENABLED
 CFLAGS += -DLFS_NO_MALLOC
 # Switch if hardware has display
 CFLAGS += -DHAS_DISPLAY=1
+#CFLAGS += -DDEBUG
 
 # C++ flags common to all targets
 CXXFLAGS += $(OPT)

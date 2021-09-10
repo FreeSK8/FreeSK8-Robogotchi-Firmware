@@ -27,7 +27,7 @@
 #define PACKET_END 0x0a
 
 typedef enum {
-	DEBUG = 0,
+	LOGDEBUG = 0,
 	HEADER,
 	ESC,
 	ESC_DELTA,
