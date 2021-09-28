@@ -1433,181 +1433,184 @@ void update_log_message_esc(TELEMETRY_DATA * esc_telemetry, LOG_ESC * log_messag
 	log_message_esc->fault = esc_telemetry->fault_code;
 }
 
-#define FW5_PACKET_LENGTH 73
+
 void process_packet_vesc(unsigned char *data, unsigned int len) {
-	// Additionally comparing with FW5_PACKET_LENGTH to safeguard against non-esc communication
-	// IE. Smart BMS that use COMM_GET_VALUES to relay BMS data instead of ESC
-	if (data[0] == COMM_GET_VALUES && len == FW5_PACKET_LENGTH){
+	// Check if we've received telemetry to be logged
+	if (data[0] == COMM_GET_VALUES_SELECTIVE){
 		int32_t index = 1;
-		esc_telemetry.temp_mos = buffer_get_float16(data,10.0,&index);
-		esc_telemetry.temp_motor = buffer_get_float16(data,10.0,&index);
-		esc_telemetry.current_motor = buffer_get_float32(data,100.0,&index);
-		esc_telemetry.current_in = buffer_get_float32(data,100.0,&index);
-		esc_telemetry.foc_id = buffer_get_float32(data,100.0,&index);
-		esc_telemetry.foc_iq = buffer_get_float32(data,100.0,&index);
-		esc_telemetry.duty_now = buffer_get_float16(data,1000.0,&index);
-		esc_telemetry.rpm = buffer_get_float32(data,1.0,&index);
-		esc_telemetry.v_in = buffer_get_float16(data,10.0,&index);
-		esc_telemetry.amp_hours = buffer_get_float32(data,10000.0,&index);
-		esc_telemetry.amp_hours_charged = buffer_get_float32(data,10000.0,&index);
-		esc_telemetry.watt_hours = buffer_get_float32(data,10000.0,&index);
-		esc_telemetry.watt_hours_charged = buffer_get_float32(data,10000.0,&index);
-		esc_telemetry.tachometer = buffer_get_int32(data,&index);
-		esc_telemetry.tachometer_abs = buffer_get_int32(data,&index);
-		esc_telemetry.fault_code = data[index++];
-		esc_telemetry.position = buffer_get_float32(data,10.0,&index);
-		esc_telemetry.vesc_id = data[index++];
-		esc_telemetry.temp_mos_1 = buffer_get_float16(data,10.0,&index);
-		esc_telemetry.temp_mos_2 = buffer_get_float16(data,10.0,&index);
-		esc_telemetry.temp_mos_3 = buffer_get_float16(data,10.0,&index);
-		esc_telemetry.vd = buffer_get_float32(data,100.0,&index);
-		esc_telemetry.vq = buffer_get_float32(data,100.0,&index);
-
-		//TODO: If there is a fault we would like to write_logdata_now but still need a sensible rate limit to protect storage
-		// Write data to log file if log_file_active and we have been flagged to write this iteration
-		if (log_file_active && write_logdata_now)
+		uint32_t mask = buffer_get_uint32(data, &index);
+		// Validate telemetry mask matches expectations
+		if (mask == 0x7FFFF)
 		{
-			// Clear write now flag
-			write_logdata_now = false;
+			esc_telemetry.temp_mos = buffer_get_float16(data,10.0,&index);
+			esc_telemetry.temp_motor = buffer_get_float16(data,10.0,&index);
+			esc_telemetry.current_motor = buffer_get_float32(data,100.0,&index);
+			esc_telemetry.current_in = buffer_get_float32(data,100.0,&index);
+			esc_telemetry.foc_id = buffer_get_float32(data,100.0,&index);
+			esc_telemetry.foc_iq = buffer_get_float32(data,100.0,&index);
+			esc_telemetry.duty_now = buffer_get_float16(data,1000.0,&index);
+			esc_telemetry.rpm = buffer_get_float32(data,1.0,&index);
+			esc_telemetry.v_in = buffer_get_float16(data,10.0,&index);
+			esc_telemetry.amp_hours = buffer_get_float32(data,10000.0,&index);
+			esc_telemetry.amp_hours_charged = buffer_get_float32(data,10000.0,&index);
+			esc_telemetry.watt_hours = buffer_get_float32(data,10000.0,&index);
+			esc_telemetry.watt_hours_charged = buffer_get_float32(data,10000.0,&index);
+			esc_telemetry.tachometer = buffer_get_int32(data,&index);
+			esc_telemetry.tachometer_abs = buffer_get_int32(data,&index);
+			esc_telemetry.fault_code = data[index++];
+			esc_telemetry.position = buffer_get_float32(data,10.0,&index);
+			esc_telemetry.vesc_id = data[index++];
+			esc_telemetry.temp_mos_1 = buffer_get_float16(data,10.0,&index);
+			esc_telemetry.temp_mos_2 = buffer_get_float16(data,10.0,&index);
+			esc_telemetry.temp_mos_3 = buffer_get_float16(data,10.0,&index);
 
-			// If we have not yet logged a full ESC message do so now
-			if (log_message_esc.dt == 0 || currentTime % 120 == 0 ||
-				// Or we have drifted too far from the last record we must write a full ESC message
-				(
-					currentTime - log_message_esc.dt > 255 ||
-					esc_telemetry.v_in * 10 - log_message_esc.vin > 127 ||
-					esc_telemetry.temp_motor * 10 - log_message_esc.motor_temp > 127 ||
-					esc_telemetry.temp_mos * 10 - log_message_esc.mosfet_temp > 127 ||
-					esc_telemetry.watt_hours * 100 - log_message_esc.watt_hours > 127 ||
-					esc_telemetry.watt_hours_charged * 100 - log_message_esc.watt_hours_regen > 127 ||
-					abs(esc_telemetry.rpm - log_message_esc.e_rpm) > 32767 ||
-					abs(esc_telemetry.tachometer_abs - log_message_esc.e_distance) > 32767
+			//TODO: If there is a fault we would like to write_logdata_now but still need a sensible rate limit to protect storage
+			// Write data to log file if log_file_active and we have been flagged to write this iteration
+			if (log_file_active && write_logdata_now)
+			{
+				// Clear write now flag
+				write_logdata_now = false;
+
+				// If we have not yet logged a full ESC message do so now
+				if (log_message_esc.dt == 0 || currentTime % 120 == 0 ||
+					// Or we have drifted too far from the last record we must write a full ESC message
+					(
+						currentTime - log_message_esc.dt > 255 ||
+						esc_telemetry.v_in * 10 - log_message_esc.vin > 127 ||
+						esc_telemetry.temp_motor * 10 - log_message_esc.motor_temp > 127 ||
+						esc_telemetry.temp_mos * 10 - log_message_esc.mosfet_temp > 127 ||
+						esc_telemetry.watt_hours * 100 - log_message_esc.watt_hours > 127 ||
+						esc_telemetry.watt_hours_charged * 100 - log_message_esc.watt_hours_regen > 127 ||
+						abs(esc_telemetry.rpm - log_message_esc.e_rpm) > 32767 ||
+						abs(esc_telemetry.tachometer_abs - log_message_esc.e_distance) > 32767
+					)
 				)
-			)
-			{
-				update_log_message_esc(&esc_telemetry, &log_message_esc);
-
-				// Write ESC telemetry data
-				size_t bytes_written = 0;
-				char start[3] = {PACKET_START, ESC, sizeof(log_message_esc)};
-				char end[1] = {PACKET_END};
-				bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
-				bytes_written += lfs_file_write(&lfs, &file, &log_message_esc, sizeof(log_message_esc));
-				bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
-
-				//NRF_LOG_INFO("ESC Bytes Written: %ld",bytes_written);
-				//NRF_LOG_FLUSH();
-			}
-			else
-			{
-				// Update delta message
-				log_message_esc_delta.dt = currentTime - log_message_esc.dt;
-				log_message_esc_delta.esc_id = esc_telemetry.vesc_id;
-				//TODO: understand why many of these casts are absolutely necessary
-				log_message_esc_delta.vin = (int8_t)((int)(esc_telemetry.v_in * 10) - (int)log_message_esc.vin);
-				log_message_esc_delta.motor_temp = (int8_t)((int)(esc_telemetry.temp_motor * 10) - (int)log_message_esc.motor_temp);
-				log_message_esc_delta.mosfet_temp = (int8_t)((int)(esc_telemetry.temp_mos * 10) - (int)log_message_esc.mosfet_temp);
-				//NRF_LOG_INFO("ESC Delta %d Now %d Previous %d", log_message_esc_delta.mosfet_temp, esc_telemetry.temp_mos * 10, log_message_esc.mosfet_temp);
-				//NRF_LOG_FLUSH();
-				log_message_esc_delta.duty_cycle = (int16_t)(esc_telemetry.duty_now * 1000) - log_message_esc.duty_cycle;
-				log_message_esc_delta.motor_current = (int)(esc_telemetry.current_motor * 10) - log_message_esc.motor_current;
-				log_message_esc_delta.battery_current = (int)(esc_telemetry.current_in * 10) - log_message_esc.battery_current;
-				log_message_esc_delta.watt_hours = (int)(esc_telemetry.watt_hours * 100) - log_message_esc.watt_hours;
-				log_message_esc_delta.watt_hours_regen = (int)(esc_telemetry.watt_hours_charged * 100) - log_message_esc.watt_hours_regen;
-				log_message_esc_delta.e_rpm = esc_telemetry.rpm - log_message_esc.e_rpm;
-				log_message_esc_delta.e_distance = esc_telemetry.tachometer_abs - log_message_esc.e_distance;
-				log_message_esc_delta.fault = esc_telemetry.fault_code;
-
-				//Update full message
-				update_log_message_esc(&esc_telemetry, &log_message_esc);
-
-				// Write out ESC DELTA message
-				size_t bytes_written = 0;
-				char start[3] = {PACKET_START, ESC_DELTA, sizeof(log_message_esc_delta)};
-				char end[1] = {PACKET_END};
-				bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
-				bytes_written += lfs_file_write(&lfs, &file, &log_message_esc_delta, sizeof(log_message_esc_delta));
-				bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
-				//NRF_LOG_INFO("ESC DELTA Bytes Written: %ld", bytes_written);
-				//NRF_LOG_FLUSH();
-			}
-		}
-
-		// Fault monitoring
-		if (esc_telemetry.fault_code != 0) {
-			// Track total number of faults seen
-			++fault_count;
-
-			// Track fault codes that have been seen
-			if (is_fault_new(esc_telemetry.fault_code, esc_telemetry.vesc_id))
-			{
-				recent_faults[recent_fault_index].fault_code = esc_telemetry.fault_code;
-				recent_faults[recent_fault_index].fault_count = 1;
-				recent_faults[recent_fault_index].esc_id = esc_telemetry.vesc_id;
-				recent_faults[recent_fault_index].dt_first_seen = currentTime;
-				recent_faults[recent_fault_index].dt_last_seen = currentTime;
-				if(recent_fault_index < RECENT_FAULT_LIMIT)
 				{
-					++recent_fault_index;
+					update_log_message_esc(&esc_telemetry, &log_message_esc);
+
+					// Write ESC telemetry data
+					size_t bytes_written = 0;
+					char start[3] = {PACKET_START, ESC, sizeof(log_message_esc)};
+					char end[1] = {PACKET_END};
+					bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+					bytes_written += lfs_file_write(&lfs, &file, &log_message_esc, sizeof(log_message_esc));
+					bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+
+					//NRF_LOG_INFO("ESC Bytes Written: %ld",bytes_written);
+					//NRF_LOG_FLUSH();
 				}
-			} else {
-				update_fault(esc_telemetry.fault_code, esc_telemetry.vesc_id);
+				else
+				{
+					// Update delta message
+					log_message_esc_delta.dt = currentTime - log_message_esc.dt;
+					log_message_esc_delta.esc_id = esc_telemetry.vesc_id;
+					//TODO: understand why many of these casts are absolutely necessary
+					log_message_esc_delta.vin = (int8_t)((int)(esc_telemetry.v_in * 10) - (int)log_message_esc.vin);
+					log_message_esc_delta.motor_temp = (int8_t)((int)(esc_telemetry.temp_motor * 10) - (int)log_message_esc.motor_temp);
+					log_message_esc_delta.mosfet_temp = (int8_t)((int)(esc_telemetry.temp_mos * 10) - (int)log_message_esc.mosfet_temp);
+					//NRF_LOG_INFO("ESC Delta %d Now %d Previous %d", log_message_esc_delta.mosfet_temp, esc_telemetry.temp_mos * 10, log_message_esc.mosfet_temp);
+					//NRF_LOG_FLUSH();
+					log_message_esc_delta.duty_cycle = (int16_t)(esc_telemetry.duty_now * 1000) - log_message_esc.duty_cycle;
+					log_message_esc_delta.motor_current = (int)(esc_telemetry.current_motor * 10) - log_message_esc.motor_current;
+					log_message_esc_delta.battery_current = (int)(esc_telemetry.current_in * 10) - log_message_esc.battery_current;
+					log_message_esc_delta.watt_hours = (int)(esc_telemetry.watt_hours * 100) - log_message_esc.watt_hours;
+					log_message_esc_delta.watt_hours_regen = (int)(esc_telemetry.watt_hours_charged * 100) - log_message_esc.watt_hours_regen;
+					log_message_esc_delta.e_rpm = esc_telemetry.rpm - log_message_esc.e_rpm;
+					log_message_esc_delta.e_distance = esc_telemetry.tachometer_abs - log_message_esc.e_distance;
+					log_message_esc_delta.fault = esc_telemetry.fault_code;
+
+					//Update full message
+					update_log_message_esc(&esc_telemetry, &log_message_esc);
+
+					// Write out ESC DELTA message
+					size_t bytes_written = 0;
+					char start[3] = {PACKET_START, ESC_DELTA, sizeof(log_message_esc_delta)};
+					char end[1] = {PACKET_END};
+					bytes_written += lfs_file_write(&lfs, &file, &start, sizeof(start));
+					bytes_written += lfs_file_write(&lfs, &file, &log_message_esc_delta, sizeof(log_message_esc_delta));
+					bytes_written += lfs_file_write(&lfs, &file, &end, sizeof(end));
+					//NRF_LOG_INFO("ESC DELTA Bytes Written: %ld", bytes_written);
+					//NRF_LOG_FLUSH();
+				}
 			}
 
-			// Alert user, don't interrupt current melody
-			melody_play(MELODY_ESC_FAULT, false); // Play fault sound, do not interrupt
-		}
+			// Fault monitoring
+			if (esc_telemetry.fault_code != 0) {
+				// Track total number of faults seen
+				++fault_count;
 
-		if (gotchi_cfg_user.alert_low_voltage != 0.0 && esc_telemetry.v_in < gotchi_cfg_user.alert_low_voltage) {
-			melody_play(MELODY_VOLTAGE_LOW, false); // Play fault sound, do not interrupt
-		}
-		if (gotchi_cfg_user.alert_esc_temp != 0.0 && esc_telemetry.temp_mos > gotchi_cfg_user.alert_esc_temp) {
-			melody_play(MELODY_ESC_TEMP, false); // Play fault sound, do not interrupt
-		}
-		if (gotchi_cfg_user.alert_motor_temp != 0.0 && esc_telemetry.temp_motor > gotchi_cfg_user.alert_motor_temp) {
-			melody_play(MELODY_MOTOR_TEMP, false); // Play fault sound, do not interrupt
-		}
+				// Track fault codes that have been seen
+				if (is_fault_new(esc_telemetry.fault_code, esc_telemetry.vesc_id))
+				{
+					recent_faults[recent_fault_index].fault_code = esc_telemetry.fault_code;
+					recent_faults[recent_fault_index].fault_count = 1;
+					recent_faults[recent_fault_index].esc_id = esc_telemetry.vesc_id;
+					recent_faults[recent_fault_index].dt_first_seen = currentTime;
+					recent_faults[recent_fault_index].dt_last_seen = currentTime;
+					if(recent_fault_index < RECENT_FAULT_LIMIT)
+					{
+						++recent_fault_index;
+					}
+				} else {
+					update_fault(esc_telemetry.fault_code, esc_telemetry.vesc_id);
+				}
 
-		++esc_rx_cnt;
+				// Alert user, don't interrupt current melody
+				melody_play(MELODY_ESC_FAULT, false); // Play fault sound, do not interrupt
+			}
+
+			if (gotchi_cfg_user.alert_low_voltage != 0.0 && esc_telemetry.v_in < gotchi_cfg_user.alert_low_voltage) {
+				melody_play(MELODY_VOLTAGE_LOW, false); // Play fault sound, do not interrupt
+			}
+			if (gotchi_cfg_user.alert_esc_temp != 0.0 && esc_telemetry.temp_mos > gotchi_cfg_user.alert_esc_temp) {
+				melody_play(MELODY_ESC_TEMP, false); // Play fault sound, do not interrupt
+			}
+			if (gotchi_cfg_user.alert_motor_temp != 0.0 && esc_telemetry.temp_motor > gotchi_cfg_user.alert_motor_temp) {
+				melody_play(MELODY_MOTOR_TEMP, false); // Play fault sound, do not interrupt
+			}
+
+			++esc_rx_cnt;
 #if HAS_DISPLAY
-		// Update fault code count on display
-		sprintf(display_text_buffer,"F%02d", recent_fault_index);
-		Adafruit_GFX_print(display_text_buffer, 106, 16);
+			// Update fault code count on display
+			sprintf(display_text_buffer,"F%02d", recent_fault_index);
+			Adafruit_GFX_print(display_text_buffer, 106, 16);
 
-		// Move dot each time we process an ESC VALUES packet
-		if (esc_rx_cnt % 2 == 0) {
-			Adafruit_GFX_fillCircle(120, 2, 2, WHITE);
-			Adafruit_GFX_fillCircle(110, 2, 2, BLACK);
-		} else {
-			Adafruit_GFX_fillCircle(120, 2, 2, BLACK);
-			Adafruit_GFX_fillCircle(110, 2, 2, WHITE);
-		}
-		update_display = true;
+			// Move dot each time we process an ESC VALUES packet
+			if (esc_rx_cnt % 2 == 0) {
+				Adafruit_GFX_fillCircle(120, 2, 2, WHITE);
+				Adafruit_GFX_fillCircle(110, 2, 2, BLACK);
+			} else {
+				Adafruit_GFX_fillCircle(120, 2, 2, BLACK);
+				Adafruit_GFX_fillCircle(110, 2, 2, WHITE);
+			}
+			update_display = true;
 #endif
-	}
+		}
 
-	// Watch telemetry data to trigger logging
-	// If we are logging now see if we should stop
-	if (log_file_active) {
-		if(esc_telemetry.v_in < gotchi_cfg_user.log_auto_stop_low_voltage) {
-			log_file_stop();
-			NRF_LOG_INFO("Logging stopped due to power drop");
+		// Watch telemetry data to trigger logging
+		// If we are logging now see if we should stop
+		if (log_file_active) {
+			if(esc_telemetry.v_in < gotchi_cfg_user.log_auto_stop_low_voltage) {
+				log_file_stop();
+				NRF_LOG_INFO("Logging stopped due to power drop");
+				NRF_LOG_FLUSH();
+			} else if (currentTime - lastTimeBoardMoved > gotchi_cfg_user.log_auto_stop_idle_time) {
+				log_file_stop();
+				NRF_LOG_INFO("Logging stopped due to inactivity");
+				NRF_LOG_FLUSH();
+			} else if ((int)fabs(esc_telemetry.rpm) > gotchi_cfg_user.log_auto_start_erpm) {
+				// We are moving while logging. Keep it up!
+				lastTimeBoardMoved = currentTime;
+			}
+		}
+		// We are not logging, see if we should start
+		else if ((int)fabs(esc_telemetry.rpm) > gotchi_cfg_user.log_auto_start_erpm && !sync_in_progress) {
+			log_file_start();
+			NRF_LOG_INFO("Logging started automatically");
 			NRF_LOG_FLUSH();
-		} else if (currentTime - lastTimeBoardMoved > gotchi_cfg_user.log_auto_stop_idle_time) {
-			log_file_stop();
-			NRF_LOG_INFO("Logging stopped due to inactivity");
-			NRF_LOG_FLUSH();
-		} else if ((int)fabs(esc_telemetry.rpm) > gotchi_cfg_user.log_auto_start_erpm) {
-			// We are moving while logging. Keep it up!
-			lastTimeBoardMoved = currentTime;
 		}
 	}
-	// We are not logging, see if we should start
-	else if ((int)fabs(esc_telemetry.rpm) > gotchi_cfg_user.log_auto_start_erpm && !sync_in_progress) {
-		log_file_start();
-		NRF_LOG_INFO("Logging started automatically");
-		NRF_LOG_FLUSH();
-	}
+
 
 	// Finish packet processing
 	if (data[0] == COMM_EXT_NRF_ESB_SET_CH_ADDR) {
@@ -1837,10 +1840,10 @@ static void logging_timer_handler(void *p_context) {
 		}
 	}
 
-	// Check if the ESC has not responded in 1 second and try swapping the UART pin configuration
-	if (currentTime - time_esc_last_responded > 1)
+	// Check if the ESC has not responded in 2 seconds and try swapping the UART pin configuration
+	if (currentTime - time_esc_last_responded > 2)
 	{
-		NRF_LOG_INFO("ESC has not responded in > 1 second. Trying next UART configuration.");
+		NRF_LOG_INFO("ESC has not responded in > 2 seconds. Trying next UART configuration.");
 		NRF_LOG_FLUSH();
 		uart_swap_pins();
 		// Reset the countdown
@@ -1876,9 +1879,8 @@ static void telemetry_timer_handler(void *p_context) {
 	write_logdata_now = true;
 
 	// Requesting ESC telemetry
-	static unsigned char telemetryPacket[] = {0x02, 0x01, COMM_GET_VALUES, 0x40, 0x84, 0x03};
-	static unsigned char telemetryPacketCAN[] = {0x02, 0x03, COMM_FORWARD_CAN, 0x00, COMM_GET_VALUES, 0x00, 0x00, 0x03};
-	static uint16_t crc;
+	static unsigned char telemetryPacket[] = {COMM_GET_VALUES_SELECTIVE, 0x00, 0x07, 0xFF, 0xFF};
+	static unsigned char telemetryPacketCAN[] = {COMM_FORWARD_CAN, 0x00, COMM_GET_VALUES_SELECTIVE, 0x00, 0x07, 0xFF, 0xFF};
 	switch (gotchi_cfg_user.multi_esc_mode)
 	{
 		case 2: //Dual ESC Mode (1 CAN FWD)
@@ -1887,15 +1889,12 @@ static void telemetry_timer_handler(void *p_context) {
 			{
 				case 0:
 					//NRF_LOG_INFO("requesting esc values locally"); NRF_LOG_FLUSH();
-					uart_send_buffer(telemetryPacket, 6);
+					packet_send_packet(telemetryPacket, 5, PACKET_VESC);
 				break;
 				case 1:
 					//NRF_LOG_INFO("requesting esc values over can"); NRF_LOG_FLUSH();
-					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[0];
-					crc = crc16(telemetryPacketCAN + 2, 3);
-					telemetryPacketCAN[5] = crc >> 8;
-					telemetryPacketCAN[6] = crc & 0xff;
-					uart_send_buffer(telemetryPacketCAN, 8);
+					telemetryPacketCAN[1] = gotchi_cfg_user.multi_esc_ids[0];
+					packet_send_packet(telemetryPacketCAN, 7, PACKET_VESC);
 					multiESCIndex = 0; // Reset cycle
 				break;
 				default:
@@ -1912,24 +1911,15 @@ static void telemetry_timer_handler(void *p_context) {
 				break;
 				case 1:
 					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[0];
-					crc = crc16(telemetryPacketCAN + 2, 3);
-					telemetryPacketCAN[5] = crc >> 8;
-					telemetryPacketCAN[6] = crc & 0xff;
-					uart_send_buffer(telemetryPacketCAN, 8);
+					packet_send_packet(telemetryPacketCAN, 7, PACKET_VESC);
 				break;
 				case 2:
 					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[1];
-					crc = crc16(telemetryPacketCAN + 2, 3);
-					telemetryPacketCAN[5] = crc >> 8;
-					telemetryPacketCAN[6] = crc & 0xff;
-					uart_send_buffer(telemetryPacketCAN, 8);
+					packet_send_packet(telemetryPacketCAN, 7, PACKET_VESC);
 				break;
 				case 3:
 					telemetryPacketCAN[3] = gotchi_cfg_user.multi_esc_ids[2];
-					crc = crc16(telemetryPacketCAN + 2, 3);
-					telemetryPacketCAN[5] = crc >> 8;
-					telemetryPacketCAN[6] = crc & 0xff;
-					uart_send_buffer(telemetryPacketCAN, 8);
+					packet_send_packet(telemetryPacketCAN, 7, PACKET_VESC);
 					multiESCIndex = 0; // Reset cycle
 				break;
 				default:
@@ -1939,7 +1929,7 @@ static void telemetry_timer_handler(void *p_context) {
 		break;
 		default:
 			// Request from single ESC only
-			uart_send_buffer(telemetryPacket, 6);
+			packet_send_packet(telemetryPacket, 5, PACKET_VESC);
 	}
 }
 
