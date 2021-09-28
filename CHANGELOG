@@ -1,3 +1,7 @@
+v0.10.2
+
+* Change telemetry request to support VESC FW5.3
+
 v0.10.1
 
 * Converting NMEA RMC speed to kph
